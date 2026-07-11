@@ -1,0 +1,117 @@
+# ============================================================
+# 景区导览服务 AI 数字人系统 — 生产环境配置样例
+# ============================================================
+# ⛔ 红色警告：
+#   - 本文件仅为配置样例，不含任何真实凭据。
+#   - 严禁将此文件重命名为 application-prod.yml 并填入真实值后提交 Git。
+#   - 真实部署时请复制本文件为 application-prod.yml 并替换所有占位符。
+#   - application-prod.yml 必须加入 .gitignore，永不入库。
+# ============================================================
+
+spring:
+  application:
+    name: scenic-ai-backend
+
+  profiles:
+    active: prod
+
+  # ---- 数据源（生产环境） ----
+  datasource:
+    url: jdbc:mysql://your-db-host:3306/scenic_ai_guide?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&useSSL=true&allowPublicKeyRetrieval=false
+    username: change_me_db_user
+    password: change_me_db_password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 10
+      maximum-pool-size: 50
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 30000
+
+  # ---- Redis 7.2（生产环境） ----
+  data:
+    redis:
+      host: your-redis-host
+      port: 6379
+      password: change_me_redis_password
+      database: 0
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 16
+          min-idle: 4
+          max-wait: -1ms
+      timeout: 5000ms
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+# ---- 服务端口 ----
+server:
+  port: 8080
+
+# ---- MyBatis-Plus 3.5.5 ----
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.guido.scenicai.module
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+# ---- Sa-Token 1.38.0 鉴权 ----
+sa-token:
+  token-name: satoken
+  timeout: 604800
+  active-timeout: -1
+  is-concurrent: true
+  is-share: false
+  token-style: uuid
+  is-log: false
+  # ⛔ 生产环境必须设置高强度 JWT 密钥（至少 32 字符随机串）
+  jwt-secret-key: change_me_jwt_secret_at_least_32_chars
+
+# ---- Knife4j（生产环境建议关闭） ----
+knife4j:
+  enable: false
+  setting:
+    language: zh_cn
+
+# ---- 文件存储 ----
+file:
+  upload:
+    path: /data/scenic-ai/uploads
+    max-size: 52428800
+
+# ---- AI 配置加密密钥 ----
+# ⛔ 此密钥用于加解密 ai_service_config 表中的 API Key/AccessKey。
+# 生产环境务必设置为高强度随机字符串（≥32 字符），且与开发环境隔离。
+# 泄露此密钥 = 泄露所有 AI 服务凭据。
+ai:
+  config:
+    aes-key: change_me_aes_key_at_least_32_chars_random
+
+# ---- 日志（生产：INFO 级别，减少输出） ----
+logging:
+  file:
+    path: /data/scenic-ai/logs
+  level:
+    com.guido.scenicai: INFO
+    com.guido.scenicai.integration: INFO
+    root: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n"
+
+# ---- 演示开关（生产环境必须关闭） ----
+demo:
+  switch:
+    enabled: false

@@ -1,0 +1,17 @@
+﻿{
+    "code":  200,
+    "msg":  "success",
+    "data":  {
+                 "messageId":  4,
+                 "answer":  "很抱歉让你有不好的体验，我先帮你把问题处理清楚。这个问题当前知识库还没有明确资料，我已记录为待补充内容。",
+                 "hitKb":  0,
+                 "sources":  [
+
+                             ],
+                 "emotion":  "NEGATIVE",
+                 "streamUrl":  null,
+                 "audioUrl":  null,
+                 "costMs":  37,
+                 "asrText":  null
+             }
+}

@@ -1,0 +1,36 @@
+﻿{
+    "code":  200,
+    "msg":  "success",
+    "data":  {
+                 "hotSpots":  [
+                                  {
+                                      "spotId":  4,
+                                      "name":  "五印坛城",
+                                      "coverImage":  "/static/demo/spot-tantra.jpg"
+                                  },
+                                  {
+                                      "spotId":  3,
+                                      "name":  "灵山梵宫",
+                                      "coverImage":  "/static/demo/spot-palace.jpg"
+                                  },
+                                  {
+                                      "spotId":  2,
+                                      "name":  "九龙灌浴",
+                                      "coverImage":  "/static/demo/spot-nine-dragons.jpg"
+                                  },
+                                  {
+                                      "spotId":  1,
+                                      "name":  "灵山大佛",
+                                      "coverImage":  "/static/demo/spot-lingshan-buddha.jpg"
+                                  }
+                              ],
+                 "recommendQuestions":  [
+                                            "五印坛城有什么历史故事？",
+                                            "五印坛城适合停留多久？",
+                                            "灵山梵宫有什么历史故事？",
+                                            "灵山梵宫适合停留多久？",
+                                            "九龙灌浴有什么历史故事？",
+                                            "九龙灌浴适合停留多久？"
+                                        ]
+             }
+}

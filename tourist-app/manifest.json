@@ -1,0 +1,15 @@
+{
+  "name": "GuidoTouristApp",
+  "appid": "",
+  "description": "UniApp Vue3 tourist app skeleton.",
+  "versionName": "0.0.1",
+  "versionCode": "1",
+  "uniStatistics": {
+    "enable": false
+  },
+  "app-plus": {
+    "distribute": {
+      "android": {}
+    }
+  }
+}

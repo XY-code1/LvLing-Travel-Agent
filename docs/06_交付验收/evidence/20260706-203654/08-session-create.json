@@ -1,0 +1,10 @@
+﻿{
+    "code":  200,
+    "msg":  "success",
+    "data":  {
+                 "sessionNo":  "61986658-d949-4d93-86a7-174d6277a2df",
+                 "scenicId":  1,
+                 "welcomeText":  "你好，我是你的专属导游，有什么可以帮你的？",
+                 "defaultAvatar":  null
+             }
+}

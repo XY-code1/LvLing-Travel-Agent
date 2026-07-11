@@ -1,0 +1,88 @@
+# ============================================================
+# 景区导览服务 AI 数字人系统 — Git 忽略规则
+# ============================================================
+# ⛔ 以下文件包含敏感凭据或属于构建产物，严禁入库。
+# ============================================================
+
+# ==================== 环境变量文件（含密钥） ====================
+.env
+.env.*
+!.env.example
+
+# ==================== 生产/本地配置（含密钥） ====================
+backend/src/main/resources/application-prod.yml
+backend/src/main/resources/application-local.yml
+backend/src/main/resources/application-*.local.yml
+
+# ==================== 构建产物 ====================
+# Maven
+target/
+backend/target/
+*.class
+*.jar
+*.war
+
+# Node / pnpm
+node_modules/
+admin-web/node_modules/
+tourist-app/node_modules/
+
+# 前端构建输出
+dist/
+admin-web/dist/
+tourist-app/unpackage/
+
+# ==================== 运行时数据 ====================
+# 文件上传
+uploads/
+
+# 日志
+logs/
+*.log
+
+# ==================== IDE / 编辑器 ====================
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+
+# HBuilderX
+.hbuilderx/
+
+# Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+
+# ==================== 操作系统 ====================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory
+
+# ==================== 其他 ====================
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# 测试覆盖报告
+coverage/
+.nyc_output/

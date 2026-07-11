@@ -1,0 +1,83 @@
+/* =========================================================
+ * Design Tokens — Guido Admin Web
+ * 参考 Linear / Vercel / Feishu 设计语言
+ * 深色侧边栏 + 靛蓝主色 + 精细阴影层次
+ * ========================================================= */
+
+:root {
+  /* ── Brand: 靛蓝 (Indigo 600) ──────────────────────── */
+  --color-primary:         #4f46e5;
+  --color-primary-hover:   #4338ca;
+  --color-primary-active:  #3730a3;
+  --color-primary-light:   #6366f1;
+  --color-primary-surface: #eef2ff;
+  --color-primary-muted:   #c7d2fe;
+  --color-on-primary:      #ffffff;
+
+  /* ── Sidebar (深色) ─────────────────────────────────── */
+  --color-sidebar-bg:          #0f172a;
+  --color-sidebar-text:        rgba(255, 255, 255, 0.55);
+  --color-sidebar-text-hover:  rgba(255, 255, 255, 0.88);
+  --color-sidebar-text-active: #ffffff;
+  --color-sidebar-item-hover:  rgba(255, 255, 255, 0.06);
+  --color-sidebar-item-active: rgba(99, 102, 241, 0.20);
+  --color-sidebar-active-bar:  #818cf8;
+  --color-sidebar-border:      rgba(255, 255, 255, 0.07);
+
+  /* ── Surfaces ───────────────────────────────────────── */
+  --color-background:    #f8fafc;
+  --color-surface:       #ffffff;
+  --color-surface-muted: #f1f5f9;
+  --color-surface-hover: #f8fafc;
+
+  /* ── Text ───────────────────────────────────────────── */
+  --color-foreground:        #0f172a;
+  --color-text-secondary:    #334155;
+  --color-text-muted:        #64748b;
+  --color-text-placeholder:  #94a3b8;
+
+  /* ── Borders ────────────────────────────────────────── */
+  --color-border:        #e2e8f0;
+  --color-border-strong: #cbd5e1;
+
+  /* ── Semantic ───────────────────────────────────────── */
+  --color-success:         #059669;
+  --color-success-surface: #ecfdf5;
+  --color-success-text:    #065f46;
+  --color-warning:         #d97706;
+  --color-warning-surface: #fffbeb;
+  --color-danger:          #dc2626;
+  --color-danger-surface:  #fef2f2;
+  --color-info:            #2563eb;
+  --color-info-surface:    #eff6ff;
+
+  /* ── Shadows (多层，营造真实深度感) ─────────────────── */
+  --shadow-xs:    0 1px 2px rgb(15 23 42 / 5%);
+  --shadow-sm:    0 1px 3px rgb(15 23 42 / 6%), 0 1px 2px rgb(15 23 42 / 4%);
+  --shadow-md:    0 4px 12px rgb(15 23 42 / 7%), 0 2px 4px rgb(15 23 42 / 4%);
+  --shadow-panel: 0 4px 24px rgb(15 23 42 / 6%), 0 1px 3px rgb(15 23 42 / 4%);
+  --shadow-card:  0 8px 24px rgb(79 70 229 / 8%), 0 2px 6px rgb(15 23 42 / 4%);
+  --shadow-float: 0 16px 48px rgb(15 23 42 / 14%), 0 4px 16px rgb(15 23 42 / 6%);
+
+  /* ── Radius ─────────────────────────────────────────── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* ── Spacing ────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* ── Layout ─────────────────────────────────────────── */
+  --sidebar-width: 220px;
+  --topbar-height: 60px;
+}

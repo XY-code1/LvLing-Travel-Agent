@@ -1,0 +1,13 @@
+﻿{
+    "code":  200,
+    "msg":  "success",
+    "data":  {
+                 "token":  "***MASKED***",
+                 "touristInfo":  {
+                                     "id":  1,
+                                     "phone":  "138****0000",
+                                     "nickname":  "Test Tourist",
+                                     "interestTags":  null
+                                 }
+             }
+}

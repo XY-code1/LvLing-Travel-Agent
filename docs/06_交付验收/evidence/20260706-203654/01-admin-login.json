@@ -1,0 +1,13 @@
+﻿{
+    "code":  200,
+    "msg":  "success",
+    "data":  {
+                 "token":  "***MASKED***",
+                 "adminInfo":  {
+                                   "id":  1,
+                                   "username":  "admin",
+                                   "realName":  "System Admin",
+                                   "role":  "admin"
+                               }
+             }
+}

@@ -1,0 +1,72 @@
+﻿{
+    "code":  200,
+    "msg":  "success",
+    "data":  {
+                 "today":  {
+                               "serviceCount":  320,
+                               "qaCount":  890,
+                               "voiceCount":  210,
+                               "imageCount":  76,
+                               "avatarCount":  640,
+                               "avgCostMs":  3400,
+                               "kbHitRate":  92.5,
+                               "errorCount":  3
+                           },
+                 "hotQuestions":  [
+                                      {
+                                          "question":  "灵山大佛多高",
+                                          "count":  45
+                                      }
+                                  ],
+                 "hotSpots":  [
+                                  {
+                                      "spotName":  "灵山大佛",
+                                      "count":  120
+                                  }
+                              ],
+                 "emotionDist":  {
+                                     "neutral":  480,
+                                     "positive":  210,
+                                     "complaint":  5,
+                                     "negative":  30
+                                 },
+                 "trend7d":  [
+                                 {
+                                     "date":  "2026-06-30",
+                                     "serviceCount":  260,
+                                     "kbHitRate":  89.50
+                                 },
+                                 {
+                                     "date":  "2026-07-01",
+                                     "serviceCount":  270,
+                                     "kbHitRate":  90.00
+                                 },
+                                 {
+                                     "date":  "2026-07-02",
+                                     "serviceCount":  280,
+                                     "kbHitRate":  90.50
+                                 },
+                                 {
+                                     "date":  "2026-07-03",
+                                     "serviceCount":  290,
+                                     "kbHitRate":  91.00
+                                 },
+                                 {
+                                     "date":  "2026-07-04",
+                                     "serviceCount":  300,
+                                     "kbHitRate":  91.50
+                                 },
+                                 {
+                                     "date":  "2026-07-05",
+                                     "serviceCount":  310,
+                                     "kbHitRate":  92.00
+                                 },
+                                 {
+                                     "date":  "2026-07-06",
+                                     "serviceCount":  320,
+                                     "kbHitRate":  92.50
+                                 }
+                             ],
+                 "demo":  1
+             }
+}

@@ -1,0 +1,18 @@
+﻿{
+    "code":  200,
+    "msg":  "success",
+    "data":  {
+                 "id":  0,
+                 "reportDate":  "2026-07-06",
+                 "positiveCount":  210,
+                 "neutralCount":  480,
+                 "negativeCount":  30,
+                 "complaintCount":  5,
+                 "hotQuestions":  "[{\"question\":\"灵山大佛多高\",\"count\":45},{\"question\":\"九龙灌浴几点开放\",\"count\":28}]",
+                 "hotSpots":  "[{\"spotName\":\"灵山大佛\",\"count\":120},{\"spotName\":\"九龙灌浴\",\"count\":86}]",
+                 "unanswered":  "[{\"messageId\":0,\"question\":\"夜游路线是否有无障碍通道\"}]",
+                 "aiSuggestion":  "演示数据：优先补齐夜游、无障碍和排队疏导相关知识，并在游客端增加高峰提示话术。",
+                 "createTime":  null,
+                 "updateTime":  null
+             }
+}

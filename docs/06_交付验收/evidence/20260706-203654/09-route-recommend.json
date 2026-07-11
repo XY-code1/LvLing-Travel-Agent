@@ -1,0 +1,78 @@
+﻿{
+    "code":  200,
+    "msg":  "success",
+    "data":  [
+                 {
+                     "routeId":  2,
+                     "name":  "历史文化深度游",
+                     "type":  4,
+                     "estimateMinutes":  210,
+                     "recommendReason":  "适合对历史文化感兴趣的游客，讲解内容更完整。",
+                     "spots":  [
+                                   {
+                                       "spotId":  1,
+                                       "name":  "灵山大佛",
+                                       "sortOrder":  1
+                                   },
+                                   {
+                                       "spotId":  3,
+                                       "name":  "灵山梵宫",
+                                       "sortOrder":  2
+                                   },
+                                   {
+                                       "spotId":  4,
+                                       "name":  "五印坛城",
+                                       "sortOrder":  3
+                                   }
+                               ]
+                 },
+                 {
+                     "routeId":  1,
+                     "name":  "经典文化半日游",
+                     "type":  1,
+                     "estimateMinutes":  150,
+                     "recommendReason":  "覆盖核心地标和代表性文化景点，适合第一次游览灵山胜境。",
+                     "spots":  [
+                                   {
+                                       "spotId":  1,
+                                       "name":  "灵山大佛",
+                                       "sortOrder":  1
+                                   },
+                                   {
+                                       "spotId":  2,
+                                       "name":  "九龙灌浴",
+                                       "sortOrder":  2
+                                   },
+                                   {
+                                       "spotId":  3,
+                                       "name":  "灵山梵宫",
+                                       "sortOrder":  3
+                                   }
+                               ]
+                 },
+                 {
+                     "routeId":  3,
+                     "name":  "亲子轻松拍照游",
+                     "type":  2,
+                     "estimateMinutes":  120,
+                     "recommendReason":  "适合亲子和拍照需求，停留点清晰，步行压力较低。",
+                     "spots":  [
+                                   {
+                                       "spotId":  2,
+                                       "name":  "九龙灌浴",
+                                       "sortOrder":  1
+                                   },
+                                   {
+                                       "spotId":  4,
+                                       "name":  "五印坛城",
+                                       "sortOrder":  2
+                                   },
+                                   {
+                                       "spotId":  1,
+                                       "name":  "灵山大佛",
+                                       "sortOrder":  3
+                                   }
+                               ]
+                 }
+             ]
+}

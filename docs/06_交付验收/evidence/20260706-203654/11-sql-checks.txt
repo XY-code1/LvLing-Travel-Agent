@@ -1,0 +1,22 @@
+﻿table_name	count
+scenic	1
+spot	4
+route	3
+route_spot	9
+route_id	spot_id	sort_order
+1	1	1
+1	2	2
+1	3	3
+2	1	1
+2	3	2
+2	4	3
+3	2	1
+3	4	2
+3	1	3
+emotion	success	need_supplement	answer_preview
+NEGATIVE	1	1	很抱歉让你有不好的体验，我先帮你把问题处理清楚。这个问题当前知识库还没有明确资料，我已记录为待补充内容。
+switch_key	enabled
+DASHBOARD_DEMO	1
+REPORT_DEMO	1
+table_count
+18
