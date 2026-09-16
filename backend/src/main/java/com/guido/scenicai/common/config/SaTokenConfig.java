@@ -51,6 +51,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
                                       "/api/tourist/route/recommend",
                                       "/api/tourist/spot/**",
                                       "/api/tourist/amap/**",
+                                      "/api/tourist/agent/plan",
                                       "/api/tourist/tts/synthesize")
                             .check(r -> StpTouristUtil.stpLogic.checkLogin());
                 }))
