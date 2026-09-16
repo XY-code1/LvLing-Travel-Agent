@@ -179,13 +179,24 @@ sequenceDiagram
 ## 项目结构
 
 ```text
-Guido/
+LvLing-Travel-Agent/
 ├── backend/
 │   └── src/main/java/com/guido/scenicai/
-│       ├── common/          统一响应、异常、鉴权、加密与操作日志
-│       ├── integration/     LLM、VLM、Embedding、ASR、TTS 适配层
-│       ├── module/          景区、景点、路线、知识库、对话等业务模块
-│       └── job/             每日统计任务
+│       ├── agent/
+│       │   ├── api/          Agent API、Request 与 Response
+│       │   ├── context/      TravelContext 构建与补全
+│       │   ├── core/         TravelAgent 总入口
+│       │   ├── harness/      HarnessEngine、ToolRegistry 与 ExecutionTrace
+│       │   ├── intent/       旅行意图结构化提取
+│       │   └── planner/      TravelTask 生成与任务规划
+│       ├── tool/
+│       │   └── map/          AgentTool 的高德路线实现 AMapRouteTool
+│       ├── domain/
+│       │   └── trip/         TravelPlan 旅行计划领域模型
+│       ├── common/           统一响应、异常、鉴权、加密与操作日志
+│       ├── integration/      AMap、LLM、VLM、Embedding、ASR、TTS Provider
+│       ├── module/           城市、景区、景点、路线、知识库、对话等业务模块
+│       └── job/              每日统计任务
 ├── admin-web/               Vue 3 管理后台
 ├── tourist-app/             UniApp 游客端
 ├── database/                数据库结构与初始化数据
