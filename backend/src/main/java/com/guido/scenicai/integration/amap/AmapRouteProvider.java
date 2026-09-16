@@ -1,6 +1,7 @@
 package com.guido.scenicai.integration.amap;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.guido.scenicai.common.exception.BizException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -23,6 +24,9 @@ public class AmapRouteProvider {
             JsonNode path = client.get("/v5/direction/walking", Map.of(
                     "origin", location(origin), "destination", location(destination), "show_fields", "cost"))
                     .path("route").path("paths").path(0);
+            if (path.isMissingNode() || path.isNull() || path.isEmpty()) {
+                throw new BizException(1002, "AMAP_ROUTE_NOT_FOUND");
+            }
             distance += path.path("distance").asInt();
             duration += path.path("cost").path("duration").asInt();
             for (JsonNode step : path.path("steps")) {
@@ -33,6 +37,9 @@ public class AmapRouteProvider {
                     }
                 }
             }
+        }
+        if (polyline.isEmpty()) {
+            throw new BizException(1002, "AMAP_ROUTE_POLYLINE_EMPTY");
         }
         return new Route(distance, duration, polyline);
     }

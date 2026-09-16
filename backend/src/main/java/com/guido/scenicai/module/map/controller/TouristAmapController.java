@@ -41,6 +41,13 @@ public class TouristAmapController {
         if (request.getPoints() == null || request.getPoints().size() < 2 || request.getPoints().size() > 16) {
             throw new BizException(400, "路线点数量必须为 2 至 16 个");
         }
+        boolean invalidCoordinate = request.getPoints().stream().anyMatch(point -> point == null
+                || !Double.isFinite(point.longitude()) || !Double.isFinite(point.latitude())
+                || point.longitude() < -180 || point.longitude() > 180
+                || point.latitude() < -90 || point.latitude() > 90);
+        if (invalidCoordinate) {
+            throw new BizException(400, "路线坐标无效");
+        }
         return Result.ok(routeProvider.walking(request.getPoints()));
     }
 

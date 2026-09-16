@@ -6,7 +6,9 @@
       <text class="amap-planner__title">{{ statusTitle }}</text>
       <text class="amap-planner__message">{{ statusMessage }}</text>
     </view>
-    <view v-if="status === 'ready' && routePending" class="amap-planner__notice">路线数据待计算</view>
+    <view v-if="status === 'ready' && routeNotice" class="amap-planner__notice" :class="`amap-planner__notice--${routeStatus}`">
+      {{ routeNotice }}
+    </view>
   </view>
 </template>
 
@@ -27,7 +29,8 @@ const props = defineProps<{
 
 const status = ref<'loading' | 'ready' | 'unconfigured' | 'error'>('loading');
 const statusMessage = ref('正在载入地图底图…');
-const routePending = ref(false);
+const routeStatus = ref<'idle' | 'loading' | 'ready' | 'error'>('idle');
+const routeNotice = ref('');
 let AMap: any;
 let map: any;
 let overlays: any[] = [];
@@ -75,6 +78,8 @@ async function renderPlan(): Promise<void> {
   const sequence = ++renderSequence;
   map.remove(overlays);
   overlays = [];
+  routeStatus.value = 'idle';
+  routeNotice.value = '';
   const activities = validActivities();
   if (!activities.length) return;
 
@@ -95,15 +100,20 @@ async function renderPlan(): Promise<void> {
   map.add(markerOverlays);
   map.setFitView(markerOverlays, false, [56, 42, 56, 42], 15);
 
-  if (activities.length < 2) return;
-  routePending.value = true;
+  if (activities.length < 2) {
+    routeNotice.value = '至少需要两个地点才能规划路线';
+    return;
+  }
+  routeStatus.value = 'loading';
+  routeNotice.value = '正在计算真实步行路线…';
   try {
     const points: AmapCoordinate[] = activities.map((item) => ({
       longitude: item.coordinates.longitude as number,
       latitude: item.coordinates.latitude as number
     }));
     const route = await planAmapWalkingRoute(points);
-    if (sequence !== renderSequence || !route.polyline.length) return;
+    if (sequence !== renderSequence) return;
+    if (!route.polyline.length) throw new Error('高德未返回可用路线');
     const polyline = new AMap.Polyline({
       path: route.polyline.map((point) => [point.longitude, point.latitude]),
       strokeColor: '#176b55', strokeWeight: 6, strokeOpacity: .82,
@@ -112,11 +122,18 @@ async function renderPlan(): Promise<void> {
     overlays.push(polyline);
     map.add(polyline);
     map.setFitView(overlays, false, [56, 42, 56, 42], 15);
-    routePending.value = false;
+    routeStatus.value = 'ready';
+    routeNotice.value = `${formatDistance(route.distanceMeters)} · 约${Math.max(1, Math.round(route.durationSeconds / 60))}分钟`;
   } catch (error) {
+    if (sequence !== renderSequence) return;
     console.warn('[AMap Route] unavailable', error);
-    routePending.value = true;
+    routeStatus.value = 'error';
+    routeNotice.value = error instanceof Error ? `路线计算失败：${error.message}` : '路线数据暂时不可用';
   }
+}
+
+function formatDistance(meters: number): string {
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)}公里` : `${Math.max(0, Math.round(meters))}米`;
 }
 
 function escapeHtml(value: string): string {
@@ -141,6 +158,8 @@ onBeforeUnmount(() => { renderSequence += 1; map?.destroy(); map = null; overlay
 .amap-planner__title { color: #123e34; font-size: 17px; font-weight: 800; }
 .amap-planner__message { max-width: 280px; margin-top: 8px; color: #61736e; font-size: 12px; line-height: 1.65; }
 .amap-planner__notice { position: absolute; right: 12px; bottom: 12px; z-index: 2; padding: 7px 10px; color: #52645f; background: rgba(255,255,255,.92); border-radius: 8px; font-size: 11px; box-shadow: 0 4px 16px rgba(20,65,52,.12); }
+.amap-planner__notice--ready { color: #176b55; }
+.amap-planner__notice--error { color: #9b3b32; }
 @keyframes amap-spin { to { transform: rotate(360deg); } }
 </style>
 
