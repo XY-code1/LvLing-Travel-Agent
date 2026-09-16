@@ -1,6 +1,8 @@
 package com.guido.scenicai.agent.api;
 
 import com.guido.scenicai.agent.context.TravelContext;
+import com.guido.scenicai.agent.harness.ExecutionTrace;
+import com.guido.scenicai.agent.harness.ToolResult;
 import com.guido.scenicai.agent.intent.TravelIntent;
 import com.guido.scenicai.agent.planner.TravelTask;
 import com.guido.scenicai.domain.trip.TravelPlan;
@@ -11,5 +13,7 @@ public record TravelAgentResponse(
         TravelContext context,
         TravelIntent intent,
         List<TravelTask> tasks,
-        TravelPlan plan) {
+        TravelPlan plan,
+        List<ToolResult> executionResults,
+        List<ExecutionTrace> executionTrace) {
 }

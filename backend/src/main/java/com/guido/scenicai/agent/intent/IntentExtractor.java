@@ -19,6 +19,7 @@ public class IntentExtractor {
     private static final Pattern DAYS = Pattern.compile("([0-9一二两三四五六七八九十]+)\\s*(?:天|日)");
     private static final Pattern BUDGET = Pattern.compile("预算\\s*(?:为|是)?\\s*[¥￥]?\\s*([0-9,]+)");
     private static final Pattern POIS = Pattern.compile("想去(.+?)(?:[。.!！]|$)");
+    private static final Pattern ROUTE = Pattern.compile("从(.+?)到(.+?)(?:的)?(?:步行|驾车|开车)?路线");
 
     public TravelIntent extract(TravelAgentRequest request, TravelContext context) {
         String message = request.getMessage().trim();
@@ -35,8 +36,13 @@ public class IntentExtractor {
         addIfPresent(preferences, message, "亲子", "亲子");
         addIfPresent(preferences, message, "摄影", "拍照", "摄影");
 
+        RouteIntent route = routeIntent(message);
+        List<String> requestedPois = requestedPois(message);
+        if (requestedPois.isEmpty() && route != null) {
+            requestedPois = List.of(route.origin(), route.destination());
+        }
         return new TravelIntent(
-                first(context.city(), match(CITY, message)),
+                first(context.city(), detectCity(message)),
                 first(context.date(), detectDate(message)),
                 first(context.durationDays(), parseDays(message)),
                 first(context.budget(), parseBudget(message)),
@@ -45,13 +51,23 @@ public class IntentExtractor {
                 mobilityConstraint,
                 List.copyOf(preferences),
                 List.copyOf(constraints),
-                requestedPois(message));
+                requestedPois,
+                route == null ? null : route.origin(),
+                route == null ? null : route.destination(),
+                route == null ? null : route.mode());
     }
 
     private String detectDate(String message) {
         if (message.contains("明天")) return "明天";
         if (message.contains("周末")) return "周末";
         if (message.contains("后天")) return "后天";
+        return null;
+    }
+
+    private String detectCity(String message) {
+        String city = match(CITY, message);
+        if (city != null) return city;
+        if (containsAny(message, "西湖", "灵隐寺", "河坊街")) return "杭州";
         return null;
     }
 
@@ -119,6 +135,13 @@ public class IntentExtractor {
         return result.stream().distinct().toList();
     }
 
+    private RouteIntent routeIntent(String message) {
+        Matcher matcher = ROUTE.matcher(message);
+        if (!matcher.find()) return null;
+        String mode = containsAny(message, "驾车", "开车") ? "driving" : "walking";
+        return new RouteIntent(matcher.group(1).trim(), matcher.group(2).trim(), mode);
+    }
+
     private void addIfPresent(Set<String> target, String message, String value, String... keywords) {
         if (containsAny(message, keywords)) target.add(value);
     }
@@ -135,5 +158,8 @@ public class IntentExtractor {
 
     private <T> T first(T explicit, T inferred) {
         return explicit != null && (!(explicit instanceof String value) || !value.isBlank()) ? explicit : inferred;
+    }
+
+    private record RouteIntent(String origin, String destination, String mode) {
     }
 }

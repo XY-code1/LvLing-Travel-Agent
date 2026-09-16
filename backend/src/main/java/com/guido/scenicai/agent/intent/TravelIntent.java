@@ -13,5 +13,8 @@ public record TravelIntent(
         boolean mobilityConstraint,
         List<String> preferences,
         List<String> constraints,
-        List<String> requestedPois) {
+        List<String> requestedPois,
+        String routeOrigin,
+        String routeDestination,
+        String routeMode) {
 }

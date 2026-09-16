@@ -6,6 +6,9 @@ import com.guido.scenicai.agent.context.TravelContext;
 import com.guido.scenicai.agent.context.TravelContextBuilder;
 import com.guido.scenicai.agent.intent.IntentExtractor;
 import com.guido.scenicai.agent.intent.TravelIntent;
+import com.guido.scenicai.agent.harness.HarnessContext;
+import com.guido.scenicai.agent.harness.HarnessEngine;
+import com.guido.scenicai.agent.harness.HarnessResult;
 import com.guido.scenicai.agent.planner.TaskPlanner;
 import com.guido.scenicai.agent.planner.TravelTask;
 import com.guido.scenicai.domain.trip.TravelPlan;
@@ -20,6 +23,7 @@ public class TravelAgent {
     private final TravelContextBuilder contextBuilder;
     private final IntentExtractor intentExtractor;
     private final TaskPlanner taskPlanner;
+    private final HarnessEngine harnessEngine;
 
     public TravelAgentResponse plan(TravelAgentRequest request) {
         TravelContext initialContext = contextBuilder.build(request);
@@ -27,7 +31,10 @@ public class TravelAgent {
         TravelContext context = contextBuilder.enrich(initialContext, intent);
         List<TravelTask> tasks = taskPlanner.plan(intent, context);
         String destination = context.city() == null ? "待确认城市" : context.city();
-        TravelPlan plan = new TravelPlan("DRAFT", destination + "旅行任务计划已生成，等待工具执行。", tasks);
-        return new TravelAgentResponse(context, intent, tasks, plan);
+        TravelPlan draft = new TravelPlan("DRAFT", destination + "旅行任务计划已生成，等待工具执行。", tasks);
+        HarnessResult harnessResult = harnessEngine.execute(draft, new HarnessContext(context, intent));
+        TravelPlan plan = new TravelPlan(harnessResult.planStatus(), draft.summary(), tasks);
+        return new TravelAgentResponse(context, intent, tasks, plan,
+                harnessResult.executionResults(), harnessResult.executionTrace());
     }
 }
