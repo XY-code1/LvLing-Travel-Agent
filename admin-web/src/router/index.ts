@@ -46,6 +46,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '快捷入口' }
       },
       {
+        path: 'resource/city',
+        name: 'resource-city',
+        component: () => import('../views/city/CityManage.vue'),
+        meta: { title: '城市管理' }
+      },
+      {
         path: 'resource/scenic',
         name: 'resource-scenic',
         component: () => import('../views/scenic/ScenicManage.vue'),

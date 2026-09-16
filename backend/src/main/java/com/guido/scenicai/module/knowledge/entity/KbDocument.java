@@ -10,6 +10,7 @@ import lombok.EqualsAndHashCode;
 @TableName("kb_document")
 public class KbDocument extends BaseEntity {
 
+    private Long cityId;
     private Long scenicId;
     private String fileName;
     private String fileType;
@@ -25,4 +26,3 @@ public class KbDocument extends BaseEntity {
     private String failMsg;
     private Integer status;
 }
-

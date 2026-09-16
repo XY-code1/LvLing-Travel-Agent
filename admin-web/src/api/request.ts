@@ -5,7 +5,7 @@ import type { ApiResult, QueryParams } from '../types';
 import { getToken } from '../utils';
 
 export const request = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
+  baseURL: '/api',
   timeout: 20000
 });
 

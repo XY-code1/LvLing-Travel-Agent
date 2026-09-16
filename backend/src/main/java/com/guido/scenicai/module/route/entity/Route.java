@@ -10,6 +10,7 @@ import lombok.EqualsAndHashCode;
 @TableName("route")
 public class Route extends BaseEntity {
 
+    private Long cityId;
     private Long scenicId;
     private String name;
     private Integer type;

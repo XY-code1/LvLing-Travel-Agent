@@ -184,12 +184,16 @@ public class TouristChatServiceImpl implements TouristChatService {
             if (StringUtils.hasText(response.getContent())) {
                 return response.getContent();
             }
-        } catch (BizException ignored) {
+        } catch (BizException e) {
             if (StringUtils.hasText(context)) {
                 return context;
             }
+            throw e;
         }
-        return "文本大模型暂时不可用，当前无法生成完整回答。";
+        if (StringUtils.hasText(context)) {
+            return context;
+        }
+        throw new BizException(503, "文本大模型未配置，请在管理后台 AI 配置 > 文本大模型中启用默认配置");
     }
 
     private String recognizeAudio(MultipartFile audio) {
@@ -198,10 +202,12 @@ public class TouristChatServiceImpl implements TouristChatService {
             if (StringUtils.hasText(result.getText())) {
                 return result.getText();
             }
-        } catch (Exception ignored) {
-            return "语音识别服务尚未配置，当前语音问题无法转写。";
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BizException(503, "语音识别服务暂不可用，请在管理后台 AI 配置 > ASR 中启用默认配置", e);
         }
-        return "语音识别结果为空。";
+        throw new BizException(502, "语音识别返回为空，请重试");
     }
 
     private String recognizeImageText(MultipartFile image) {

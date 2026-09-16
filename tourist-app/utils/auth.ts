@@ -40,6 +40,10 @@ export function requireLogin(): boolean {
   return false;
 }
 
+export function requireLoginForAction(): boolean {
+  return requireLogin();
+}
+
 export function clearAuth(): void {
   clearToken();
   clearStoredUser();

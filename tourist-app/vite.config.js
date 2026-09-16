@@ -1,6 +1,6 @@
 const path = require('node:path');
 const moduleAlias = require('module-alias');
-const { defineConfig } = require('vite');
+const { defineConfig, loadEnv } = require('vite');
 const uni = require('@dcloudio/vite-plugin-uni').default;
 
 const projectRoot = __dirname;
@@ -37,8 +37,14 @@ if (hbuilderxPlugins) {
   };
 }
 
-module.exports = defineConfig({
+module.exports = defineConfig(({ mode }) => {
+  const env = loadEnv(mode, projectRoot, 'VITE_');
+  return {
   root: projectRoot,
+  define: {
+    __AMAP_JS_KEY__: JSON.stringify(env.VITE_AMAP_JS_KEY || ''),
+    __AMAP_SECURITY_CODE__: JSON.stringify(env.VITE_AMAP_SECURITY_CODE || '')
+  },
   server: {
     port: 5175,
     host: '0.0.0.0',
@@ -58,4 +64,5 @@ module.exports = defineConfig({
     emptyOutDir: true
   },
   plugins: [uni()]
+  };
 });

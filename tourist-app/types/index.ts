@@ -158,6 +158,8 @@ export interface RouteRecommendSpotVO {
   spotId: number;
   name: string;
   sortOrder: number;
+  longitude: number | null;
+  latitude: number | null;
 }
 
 export interface RouteRecommendVO {
@@ -167,6 +169,81 @@ export interface RouteRecommendVO {
   estimateMinutes: number | null;
   recommendReason: string;
   spots: RouteRecommendSpotVO[];
+}
+
+export type PlannerCheckStatus = 'PASS' | 'WARN' | 'PENDING' | 'FAIL';
+
+export interface TravelRequest {
+  destination: string | null;
+  startDate: string | null;
+  days: number | null;
+  budget: number | null;
+  travelers: number | null;
+  preferences: string[];
+  requiredPlaces: string[];
+  mobilityPreference: string | null;
+  transportPreference: string | null;
+  rawText: string;
+}
+
+export interface TravelPlanBudget {
+  budget: number | null;
+  estimatedTotal: number | null;
+  transport: number | null;
+  dining: number | null;
+  tickets: number | null;
+  totalDistanceKm: number | null;
+  walkingDistanceKm: number | null;
+  note: string;
+}
+
+export interface TravelPlanCheck {
+  status: PlannerCheckStatus;
+  message: string;
+  source: string;
+}
+
+export interface TravelPlanChecks {
+  weather: TravelPlanCheck;
+  openingHours: TravelPlanCheck;
+  route: TravelPlanCheck;
+  timeConflict: TravelPlanCheck;
+  budget: TravelPlanCheck;
+}
+
+export interface TravelActivity {
+  time: string;
+  poi: { id: number | null; name: string };
+  coordinates: { longitude: number | null; latitude: number | null };
+  duration: number | null;
+  transport: string | null;
+  estimatedCost: number | null;
+  reason: string;
+}
+
+export interface TravelDay {
+  day: number;
+  title: string;
+  activities: TravelActivity[];
+}
+
+export type PlannerStepStatus = 'DONE' | 'RUNNING' | 'PENDING' | 'ERROR';
+
+export interface PlannerStep {
+  id: string;
+  label: string;
+  status: PlannerStepStatus;
+  detail: string;
+}
+
+export interface TravelPlan {
+  request: TravelRequest;
+  summary: string;
+  budget: TravelPlanBudget;
+  checks: TravelPlanChecks;
+  days: TravelDay[];
+  steps: PlannerStep[];
+  routeId: number | null;
 }
 
 export interface HotSpotVO {
@@ -183,6 +260,22 @@ export interface NearbySpotVO extends HotSpotVO {
 export interface TouristHomeHotVO {
   hotSpots: HotSpotVO[];
   recommendQuestions: string[];
+}
+
+export interface CityVO {
+  id: number; cityCode: string; cityName: string; province: string | null;
+  country: string | null; description: string | null; slogan: string | null;
+  coverImage: string | null; heroImages: string | null; themeConfig: string | null;
+  longitude: number | null; latitude: number | null; weatherCode?: string | null;
+  status: number; sortOrder: number;
+}
+
+export interface CityContextVO {
+  city: CityVO | null;
+  scenicAreas: Array<{ id: number; name: string }>;
+  pois: Array<{ id: number; name: string; images?: string | null }>;
+  services: unknown[]; announcements: unknown[]; knowledgeSources: string[];
+  discovered: boolean; fallback: boolean; message: string | null;
 }
 
 export interface TouristSpotDetailVO {

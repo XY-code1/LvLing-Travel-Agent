@@ -91,7 +91,7 @@ public class TouristVoiceStreamService {
             sendEvent(emitter, "done", toJson(doneData(message, metrics)));
             emitter.complete();
         } catch (Exception e) {
-            emitter.completeWithError(e);
+            completeWithError(emitter, e);
         }
     }
 
@@ -113,11 +113,14 @@ public class TouristVoiceStreamService {
             if (StringUtils.hasText(result.getText())) {
                 return result.getText();
             }
+        } catch (BizException e) {
+            metrics.asrMs = elapsedMs(start);
+            throw e;
         } catch (Exception e) {
             metrics.asrMs = elapsedMs(start);
-            return "语音识别服务尚未配置，当前语音问题无法转写。";
+            throw new BizException(503, "语音识别服务暂不可用，请在管理后台 AI 配置 > ASR 中启用默认配置", e);
         }
-        return "语音识别结果为空。";
+        throw new BizException(502, "语音识别返回为空，请重试");
     }
 
     private String retrieveContext(ChatSession session, String question, List<SourceVO> sources,
@@ -169,19 +172,24 @@ public class TouristVoiceStreamService {
             answer.append(lead);
             sendChunks(emitter, lead);
         }
+        int answerLengthBeforeModel = answer.length();
         try {
             llmClientRouter.stream(toLlmRequest(question, context, inputEmotion), delta -> {
                 answer.append(delta);
                 sendEvent(emitter, "delta", toJson(MapData.of("text", delta)));
             });
         } catch (BizException e) {
-            // Keep any partial model output already sent to the visitor.
+            if (answer.length() == answerLengthBeforeModel) {
+                throw e;
+            }
         }
         metrics.llmMs = Math.max(0, elapsedMs(start) - metrics.asrMs - metrics.retrieveMs);
         if (!StringUtils.hasText(answer.toString())) {
-            String fallback = StringUtils.hasText(context) ? context : "文本大模型暂时不可用，当前无法生成完整回答。";
-            sendChunks(emitter, fallback);
-            return fallback;
+            if (StringUtils.hasText(context)) {
+                sendChunks(emitter, context);
+                return context;
+            }
+            throw new BizException(503, "文本大模型未配置，请在管理后台 AI 配置 > 文本大模型中启用默认配置");
         }
         return answer.toString();
     }
@@ -265,6 +273,18 @@ public class TouristVoiceStreamService {
             emitter.send(SseEmitter.event().name(name).data(data));
         } catch (Exception e) {
             throw new BizException(500, "SSE 推送失败", e);
+        }
+    }
+
+    private void completeWithError(SseEmitter emitter, Exception error) {
+        String message = error instanceof BizException bizException
+                ? bizException.getMsg()
+                : "AI 服务暂不可用，请检查管理后台配置";
+        try {
+            sendEvent(emitter, "error", toJson(MapData.of("message", message)));
+            emitter.complete();
+        } catch (Exception ignored) {
+            emitter.completeWithError(error);
         }
     }
 

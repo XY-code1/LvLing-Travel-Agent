@@ -3,7 +3,8 @@
     {
       "path": "pages/index/index",
       "style": {
-        "navigationBarTitleText": "智能导览"
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "旅灵"
       }
     },
     {
@@ -21,7 +22,14 @@
     {
       "path": "pages/chat/index",
       "style": {
-        "navigationBarTitleText": "导览问答"
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "AI旅行规划"
+      }
+    },
+    {
+      "path": "pages/inspiration/index",
+      "style": {
+        "navigationBarTitleText": "旅行灵感"
       }
     },
     {

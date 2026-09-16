@@ -6,7 +6,9 @@ export type UniRequestOptions = Omit<UniApp.RequestOptions, 'url'> & {
   url: string;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+// HBuilderX/uni-app uses the same-origin /api path in H5; Vite env syntax is
+// intentionally avoided because the HBuilderX Vue CLI parser does not support import.meta.env.
+const API_BASE_URL = '';
 
 function withBaseUrl(url: string): string {
   return url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
@@ -56,15 +58,15 @@ export function request<T>(options: UniRequestOptions): Promise<T> {
   });
 }
 
-export function get<T>(url: string, data?: Record<string, unknown>): Promise<T> {
+export function get<T>(url: string, data?: any): Promise<T> {
   return request<T>({ url, data, method: 'GET' });
 }
 
-export function post<T>(url: string, data?: Record<string, unknown>): Promise<T> {
+export function post<T>(url: string, data?: any): Promise<T> {
   return request<T>({ url, data, method: 'POST' });
 }
 
-export function put<T>(url: string, data?: Record<string, unknown>): Promise<T> {
+export function put<T>(url: string, data?: any): Promise<T> {
   return request<T>({ url, data, method: 'PUT' });
 }
 
@@ -127,7 +129,7 @@ export function uploadRaw(
   });
 }
 
-export function rawPost(url: string, data?: Record<string, unknown>): Promise<string> {
+export function rawPost(url: string, data?: any): Promise<string> {
   return new Promise((resolve, reject) => {
     uni.request({
       url: withBaseUrl(url),
@@ -159,7 +161,7 @@ export type SseEventHandler = (event: SseEvent) => void;
 
 export async function streamPost(
   url: string,
-  data: Record<string, unknown> | undefined,
+  data: any,
   onEvent: SseEventHandler
 ): Promise<void> {
   if (!canUseFetchStream()) {

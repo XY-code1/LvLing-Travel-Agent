@@ -77,7 +77,7 @@ public class TouristTextStreamService {
             sendEvent(emitter, "done", toJson(MapData.of("costMs", message.getCostMs(), "success", true)));
             emitter.complete();
         } catch (Exception e) {
-            emitter.completeWithError(e);
+            completeWithError(emitter, e);
         }
     }
 
@@ -135,18 +135,24 @@ public class TouristTextStreamService {
             answer.append(lead);
             sendChunks(emitter, lead);
         }
+        int answerLengthBeforeModel = answer.length();
         try {
             llmClientRouter.stream(toLlmRequest(question, context, inputEmotion), delta -> {
                 answer.append(delta);
                 sendEvent(emitter, "delta", toJson(MapData.of("text", delta)));
             });
         } catch (BizException e) {
-            // If the model streamed partial content before failing, keep what the visitor already saw.
+            // Partial model output is still usable; otherwise surface the missing provider explicitly.
+            if (answer.length() == answerLengthBeforeModel) {
+                throw e;
+            }
         }
         if (!StringUtils.hasText(answer.toString())) {
-            String fallback = StringUtils.hasText(context) ? context : "文本大模型暂时不可用，当前无法生成完整回答。";
-            sendChunks(emitter, fallback);
-            return fallback;
+            if (StringUtils.hasText(context)) {
+                sendChunks(emitter, context);
+                return context;
+            }
+            throw new BizException(503, "文本大模型未配置，请在管理后台 AI 配置 > 文本大模型中启用默认配置");
         }
         return answer.toString();
     }
@@ -222,6 +228,18 @@ public class TouristTextStreamService {
             emitter.send(SseEmitter.event().name(name).data(data));
         } catch (Exception e) {
             throw new BizException(500, "SSE 推送失败", e);
+        }
+    }
+
+    private void completeWithError(SseEmitter emitter, Exception error) {
+        String message = error instanceof BizException bizException
+                ? bizException.getMsg()
+                : "AI 服务暂不可用，请检查管理后台配置";
+        try {
+            sendEvent(emitter, "error", toJson(MapData.of("message", message)));
+            emitter.complete();
+        } catch (Exception ignored) {
+            emitter.completeWithError(error);
         }
     }
 

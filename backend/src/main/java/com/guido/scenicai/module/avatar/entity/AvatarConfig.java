@@ -10,6 +10,7 @@ import lombok.EqualsAndHashCode;
 @TableName("avatar_config")
 public class AvatarConfig extends BaseEntity {
 
+    private Long cityId;
     private String name;
     private String provider;
     private String instanceId;

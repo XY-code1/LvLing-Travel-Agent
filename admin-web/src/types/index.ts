@@ -23,6 +23,8 @@ export interface AdminInfoVO {
   role: string;
 }
 
+export interface CityVO { id: number; cityCode: string; cityName: string; province: string | null; country: string | null; description: string | null; slogan: string | null; coverImage: string | null; status: number; sortOrder: number; }
+
 export interface AdminLoginVO {
   token: string;
   adminInfo: AdminInfoVO;

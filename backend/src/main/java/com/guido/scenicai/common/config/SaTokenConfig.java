@@ -1,6 +1,7 @@
 package com.guido.scenicai.common.config;
 
 import cn.dev33.satoken.interceptor.SaInterceptor;
+import cn.dev33.satoken.router.SaHttpMethod;
 import cn.dev33.satoken.router.SaRouter;
 import jakarta.annotation.PostConstruct;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
          * /api/admin/login 放行（免登录）。
          */
         registry.addInterceptor(new SaInterceptor(handle -> {
+                    SaRouter.match(SaHttpMethod.OPTIONS).back();
                     SaRouter.match("/api/admin/**")
                             .notMatch("/api/admin/login")
                             .check(r -> StpAdminUtil.stpLogic.checkLogin());
@@ -39,9 +41,17 @@ public class SaTokenConfig implements WebMvcConfigurer {
          * /api/tourist/auth/register、/api/tourist/auth/login 放行（免登录）。
          */
         registry.addInterceptor(new SaInterceptor(handle -> {
-                    SaRouter.match("/api/tourist/**")
+            SaRouter.match(SaHttpMethod.OPTIONS).back();
+            SaRouter.match("/api/tourist/**")
                             .notMatch("/api/tourist/auth/register",
-                                      "/api/tourist/auth/login")
+                                      "/api/tourist/auth/login",
+                                      "/api/tourist/cities",
+                                      "/api/tourist/cities/**",
+                                      "/api/tourist/scenic/hot",
+                                      "/api/tourist/route/recommend",
+                                      "/api/tourist/spot/**",
+                                      "/api/tourist/amap/**",
+                                      "/api/tourist/tts/synthesize")
                             .check(r -> StpTouristUtil.stpLogic.checkLogin());
                 }))
                 .addPathPatterns("/api/tourist/**");

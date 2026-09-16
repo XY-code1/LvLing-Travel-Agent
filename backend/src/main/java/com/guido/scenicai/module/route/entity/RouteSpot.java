@@ -12,6 +12,7 @@ public class RouteSpot {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    private Long cityId;
     private Long routeId;
     private Long spotId;
     private Integer sortOrder;

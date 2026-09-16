@@ -93,6 +93,11 @@ public class AliyunSpeechClient {
     }
 
     public TtsResult synthesize(String text, String voiceOverride, Integer speechRateOverride) {
+        return synthesize(text, voiceOverride, speechRateOverride, null);
+    }
+
+    public TtsResult synthesize(String text, String voiceOverride, Integer speechRateOverride,
+                                Integer pitchRateOverride) {
         long start = System.nanoTime();
         AiConfigSnapshot config = aiConfigLoader.loadDefault(ServiceType.TTS);
         if (!StringUtils.hasText(text)) {
@@ -102,7 +107,18 @@ public class AliyunSpeechClient {
         try {
             JsonNode extra = extraConfig(config);
             String format = text(extra, "ttsFormat", "mp3");
-            Map<String, Object> body = ttsBody(config, extra, text, format, voiceOverride, speechRateOverride);
+            String databaseVoice = text(extra, "voice", voice(config));
+            String finalVoice = StringUtils.hasText(voiceOverride)
+                    ? normalizeVoiceCode(voiceOverride)
+                    : databaseVoice;
+            if (!StringUtils.hasText(finalVoice)) {
+                finalVoice = "xiaoyun";
+            }
+            log.info("[TTS Provider] db default voice={}, request voiceId={}, final voice used={}",
+                    databaseVoice, voiceOverride, finalVoice);
+            log.info("[Aliyun TTS] final voice={}", finalVoice);
+            Map<String, Object> body = ttsBody(config, extra, text, format, finalVoice,
+                    speechRateOverride, pitchRateOverride);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(resolveEndpoint(config, extra, "ttsUrl", "/stream/v1/tts")))
                     .timeout(Duration.ofMillis(timeoutMs(config)))
@@ -111,7 +127,7 @@ public class AliyunSpeechClient {
                     .build();
             HttpResponse<byte[]> response = HttpClient.newHttpClient()
                     .send(request, HttpResponse.BodyHandlers.ofByteArray());
-            String audioUrl = storeAudio(response, format);
+            String audioUrl = storeAudio(response, format, finalVoice);
             logSuccess(LogTypeEnum.TTS, "textLength=" + text.length() + ",format=" + format,
                     "audioUrl=" + audioUrl, start);
             return new TtsResult(audioUrl, "audioBytes=" + response.body().length);
@@ -139,11 +155,14 @@ public class AliyunSpeechClient {
         return new AsrResult(result, response.body());
     }
 
-    private String storeAudio(HttpResponse<byte[]> response, String format) throws Exception {
+    private String storeAudio(HttpResponse<byte[]> response, String format, String requestedVoice) throws Exception {
         String contentType = response.headers().firstValue("Content-Type").orElse("");
         if (response.statusCode() != 200 || contentType.toLowerCase().contains("json")) {
+            String errorResponse = limit(new String(response.body(), StandardCharsets.UTF_8), 180);
+            log.error("[TTS Voice Error] requested voice={}, reason=Aliyun rejected TTS request, response={}",
+                    requestedVoice, errorResponse);
             throw new BizException(ResultCode.AI_SERVICE_ERROR.getCode(),
-                    "阿里云 TTS 失败：" + limit(new String(response.body(), StandardCharsets.UTF_8), 180));
+                    "阿里云 TTS 失败：" + errorResponse);
         }
         Path dir = Path.of(uploadPath, "audio");
         Files.createDirectories(dir);
@@ -166,17 +185,18 @@ public class AliyunSpeechClient {
     }
 
     private Map<String, Object> ttsBody(AiConfigSnapshot config, JsonNode extra, String text, String format,
-                                        String voiceOverride, Integer speechRateOverride) {
+                                        String finalVoice, Integer speechRateOverride,
+                                        Integer pitchRateOverride) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("appkey", config.getAppKey());
         body.put("token", speechToken(config, extra));
         body.put("text", text);
         body.put("format", format);
         body.put("sample_rate", number(extra, "ttsSampleRate", 16000));
-        body.put("voice", StringUtils.hasText(voiceOverride) ? normalizeVoiceCode(voiceOverride) : text(extra, "voice", voice(config)));
+        body.put("voice", finalVoice);
         body.put("volume", number(extra, "volume", 50));
         body.put("speech_rate", speechRateOverride == null ? number(extra, "speechRate", 0) : speechRateOverride);
-        body.put("pitch_rate", number(extra, "pitchRate", 0));
+        body.put("pitch_rate", pitchRateOverride == null ? number(extra, "pitchRate", 0) : pitchRateOverride);
         return body;
     }
 

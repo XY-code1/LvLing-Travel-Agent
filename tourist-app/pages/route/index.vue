@@ -156,7 +156,7 @@ function chooseLocationImage(): Promise<string> {
     uni.chooseImage({
       count: 1,
       sourceType: ['camera', 'album'],
-      success: (response: { tempFilePaths: string[] }) => resolve(response.tempFilePaths[0]),
+      success: (response) => resolve(response.tempFilePaths[0]),
       fail: () => reject(new Error('未选择图片'))
     });
   });

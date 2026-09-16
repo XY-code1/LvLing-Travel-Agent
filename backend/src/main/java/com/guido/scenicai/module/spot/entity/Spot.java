@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 @TableName("spot")
 public class Spot extends BaseEntity {
 
+    private Long cityId;
     private Long scenicId;
     private String name;
     private String alias;

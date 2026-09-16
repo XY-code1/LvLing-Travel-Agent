@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class KbChunk {
 
     private Long id;
+    private Long cityId;
     private Long docId;
     private Long scenicId;
     /** 关联景点（用于视觉识别映射） */

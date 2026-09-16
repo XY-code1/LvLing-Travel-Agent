@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 @TableName("chat_session")
 public class ChatSession extends BaseEntity {
 
+    private Long cityId;
     private String sessionNo;
     private Long touristUserId;
     private Long scenicId;

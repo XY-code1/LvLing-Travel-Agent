@@ -13,13 +13,16 @@
         mode="aspectFit"
         @error="imageFailed = true"
       />
-      <view v-else class="avatar-box__fallback">
+      <view v-else-if="!imageOverride" class="avatar-box__fallback">
         <image
           class="avatar-box__fallback-image"
           src="/static/images/auth-guide-visual.webp"
           mode="aspectFill"
         />
         <view class="avatar-box__fallback-shade" />
+      </view>
+      <view v-else class="avatar-box__image-error">
+        灵灵形象暂时无法加载
       </view>
       <view v-if="speaking" class="avatar-box__voice">
         <view
@@ -50,6 +53,9 @@ const props = defineProps<{
   connected: boolean;
   avatar?: AvatarConfigVO | null;
   text?: string | null;
+  imageOverride?: string | null;
+  nameOverride?: string | null;
+  metaOverride?: string | null;
 }>();
 
 const audio = ref<HTMLAudioElement | null>(null);
@@ -60,8 +66,11 @@ const imageFailed = ref(false);
 const voiceBars = [0, 1, 2, 3, 4];
 let progressTimer = 0;
 
-const avatarName = computed(() => props.avatar?.name || '数字导游');
+const avatarName = computed(() => props.nameOverride || props.avatar?.name || '数字导游');
 const avatarMeta = computed(() => {
+  if (props.metaOverride) {
+    return props.metaOverride;
+  }
   if (props.avatar?.outfit) {
     return `${genderText(props.avatar.gender)} / ${props.avatar.outfit}`;
   }
@@ -70,8 +79,8 @@ const avatarMeta = computed(() => {
 
 const avatarImage = computed(() => {
   if (imageFailed.value) return '';
-  const src = props.avatar?.avatarImage || props.avatar?.outfitImage || '';
-  return versionedImage(src, props.avatar);
+  const src = props.imageOverride || props.avatar?.avatarImage || props.avatar?.outfitImage || '';
+  return props.imageOverride ? src : versionedImage(src, props.avatar);
 });
 
 onBeforeUnmount(() => {
@@ -79,7 +88,7 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => props.avatar?.avatarImage,
+  () => [props.avatar?.avatarImage, props.imageOverride],
   () => {
     imageFailed.value = false;
   }
@@ -312,6 +321,18 @@ function versionedImage(src: string, avatar?: AvatarConfigVO | null): string {
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+.avatar-box__image-error {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24rpx;
+  color: rgba(16, 35, 30, .68);
+  font-size: 24rpx;
+  text-align: center;
 }
 
 .avatar-box__fallback-shade {

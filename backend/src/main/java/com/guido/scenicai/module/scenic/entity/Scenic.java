@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 @TableName("scenic")
 public class Scenic extends BaseEntity {
 
+    private Long cityId;
     private String name;
     private String intro;
     private String address;

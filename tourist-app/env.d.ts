@@ -13,10 +13,4 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-declare module 'vue' {
-  import type { App, Component } from 'vue';
-
-  export function createSSRApp(rootComponent: Component, rootProps?: Record<string, unknown>): App;
-}
-
 export {};

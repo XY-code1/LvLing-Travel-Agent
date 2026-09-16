@@ -8,16 +8,20 @@
 .env
 .env.*
 !.env.example
+**/.env.local
+**/.env.*.local
 
 # ==================== 生产/本地配置（含密钥） ====================
 backend/src/main/resources/application-prod.yml
 backend/src/main/resources/application-local.yml
+backend/src/main/resources/application-secret.yml
 backend/src/main/resources/application-*.local.yml
 
 # ==================== 构建产物 ====================
 # Maven
 target/
 backend/target/
+.m2/
 *.class
 *.jar
 *.war
@@ -31,6 +35,16 @@ tourist-app/node_modules/
 dist/
 admin-web/dist/
 tourist-app/unpackage/
+outputs/
+
+# 本地模型与第三方运行时二进制（体积过大，不进入 Git）
+models/
+third_party/**/checkpoints/
+third_party/**/resources/ffmpeg/
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
 
 # ==================== 运行时数据 ====================
 # 文件上传
@@ -49,6 +63,10 @@ logs/
 
 # VS Code
 .vscode/
+
+# 私钥 / 证书
+*.key
+*.pem
 
 # HBuilderX
 .hbuilderx/

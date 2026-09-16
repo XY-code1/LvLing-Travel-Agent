@@ -1,59 +1,67 @@
 /* =========================================================
  * Guido Tourist App — 全局设计令牌 & 基础样式
- * 参考自然景区 / 文旅服务 / 高端导览 App 的清爽文化风格
- * 主色: 玉绿色 #15803d  | 强调色: 琥珀金 #d97706
+ * 东方自然 / AI 科技 / 高端旅行 / 克制温暖
  * ========================================================= */
 
-/* ── 设计令牌 ────────────────────────────────────────── */
+/* ── UI-1 Design Tokens ───────────────────────────────── */
 :root {
-  /* 主色系 */
-  --primary:        #15803d;
-  --primary-dark:   #166534;
-  --primary-deeper: #064e3b;
-  --primary-surface: #ecfdf5;
-  --on-primary:     #ffffff;
-  --accent:         #d97706;
-  --accent-soft:    #fff7ed;
+  --bg-main: #f5f3ed;
+  --bg-soft: #eeeae1;
+  --jade-900: #173f35;
+  --jade-700: #285f52;
+  --jade-500: #5e8c7e;
+  --gold: #d9b76e;
+  --ivory: #f8f6f0;
+  --text-main: #14241f;
+  --text-secondary: rgba(20, 36, 31, .65);
+  --blur: 18px;
 
-  /* Surfaces */
-  --app-bg:      #f3faf5;
-  --surface:     #ffffff;
-  --surface-soft: #f7fbf8;
+  --radius-sm: 12px;
+  --radius: 18px;
+  --radius-lg: 28px;
+  --radius-hero: 32px;
+
+  --shadow-soft: 0 8px 24px rgba(23, 63, 53, .08);
+  --shadow-card: 0 16px 40px rgba(23, 63, 53, .10);
+  --shadow-float: 0 28px 70px rgba(23, 63, 53, .18);
+  --shadow-premium: 0 20px 60px rgba(24, 40, 34, .10);
+
+  /* Backwards-compatible aliases used by existing pages. */
+  --bg: var(--bg-main);
+  --surface-glass: rgba(255, 255, 255, .72);
+  --surface-strong: rgba(255, 255, 255, .88);
+  --app-bg: var(--bg-main);
+  --surface: #ffffff;
+  --surface-soft: var(--ivory);
   --surface-raised: #ffffff;
-
-  /* Text */
-  --text-main:        #0f172a;
-  --text-secondary:   #334155;
-  --text-muted:       #64748b;
-  --text-placeholder: #94a3b8;
-
-  /* Borders */
-  --line:        #dcebe2;
-  --line-strong: #bfd8c8;
-
-  /* Semantic */
-  --success: #059669;
-  --warning: #d97706;
-  --danger:  #ef4444;
-
-  /* Shadows */
-  --shadow-soft: 0 8rpx 28rpx rgba(21, 128, 61, 0.10), 0 2rpx 8rpx rgba(15, 23, 42, 0.05);
-  --shadow-card: 0 16rpx 48rpx rgba(21, 128, 61, 0.14), 0 4rpx 14rpx rgba(15, 23, 42, 0.08);
-  --shadow-float: 0 28rpx 70rpx rgba(6, 78, 59, 0.22);
-
-  /* Radius */
-  --radius:    24rpx;
-  --radius-lg: 40rpx;
-  --radius-sm: 16rpx;
-  --radius-xs: 8rpx;
-
-  /* Hero 渐变 */
-  --hero-gradient: linear-gradient(145deg, #064e3b 0%, #15803d 58%, #d97706 145%);
+  --text-primary: var(--text-main);
+  --text-muted: rgba(20, 36, 31, .52);
+  --text-placeholder: rgba(20, 36, 31, .38);
+  --jade: var(--jade-700);
+  --jade-light: #83a99d;
+  --primary: var(--jade-700);
+  --primary-dark: var(--jade-700);
+  --primary-deeper: var(--jade-900);
+  --primary-surface: #e8f0eb;
+  --on-primary: #ffffff;
+  --accent: #b9893e;
+  --accent-soft: #f6eddc;
+  --line: rgba(23, 63, 53, .14);
+  --line-strong: rgba(23, 63, 53, .25);
+  --success: #3f806b;
+  --warning: #b9893e;
+  --danger: #b9554d;
+  --radius-xs: 8px;
+  --hero-gradient: linear-gradient(145deg, var(--jade-900) 0%, var(--jade-700) 58%, #8b7650 145%);
 }
 
 /* ── 页面基础 ─────────────────────────────────────────── */
 .page {
   min-height: 100vh;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  box-sizing: border-box;
   padding: 32rpx;
   background:
     radial-gradient(circle at 12% 0%, rgba(217, 119, 6, 0.10), transparent 34%),
@@ -371,3 +379,33 @@
 
 /* ── 文字修饰 ─────────────────────────────────────────── */
 .muted { color: var(--text-muted); font-size: 24rpx; }
+
+/* ── Responsive foundations ───────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--bg-main);
+}
+
+@media (max-width: 767px) {
+  .page {
+    padding: 24rpx;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

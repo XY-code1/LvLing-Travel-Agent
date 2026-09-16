@@ -49,6 +49,9 @@ public class TouristRouteRecommendServiceImpl implements TouristRouteRecommendSe
     }
 
     private String currentUserInterest() {
+        if (!StpTouristUtil.stpLogic.isLogin()) {
+            return null;
+        }
         Long touristId = StpTouristUtil.stpLogic.getLoginIdAsLong();
         TouristUser user = touristUserMapper.selectById(touristId);
         return user == null ? null : user.getInterestTags();
@@ -178,15 +181,20 @@ public class TouristRouteRecommendServiceImpl implements TouristRouteRecommendSe
         if (rows.isEmpty()) {
             return List.of();
         }
-        Map<Long, String> spotNameMap = spotMapper.selectBatchIds(rows.stream()
+        Map<Long, Spot> spotMap = spotMapper.selectBatchIds(rows.stream()
                         .map(RouteSpot::getSpotId).toList())
                 .stream()
-                .collect(Collectors.toMap(Spot::getId, Spot::getName));
+                .collect(Collectors.toMap(Spot::getId, spot -> spot));
         return rows.stream().map(row -> {
             RouteRecommendSpotVO vo = new RouteRecommendSpotVO();
+            Spot spot = spotMap.get(row.getSpotId());
             vo.setSpotId(row.getSpotId());
-            vo.setName(spotNameMap.get(row.getSpotId()));
+            vo.setName(spot == null ? "未命名点位" : spot.getName());
             vo.setSortOrder(row.getSortOrder());
+            if (spot != null) {
+                vo.setLongitude(spot.getLongitude());
+                vo.setLatitude(spot.getLatitude());
+            }
             return vo;
         }).toList();
     }

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
-import type { AvatarConfigVO, TouristInfoVO, TouristProfileVO } from '../types';
+import type { AvatarConfigVO, CityContextVO, CityVO, TouristInfoVO, TouristProfileVO } from '../types';
 import { clearAuth, getStoredUser, getToken, setStoredUser, setToken } from '../utils/auth';
 
 export const useTouristStore = defineStore('tourist', () => {
@@ -14,6 +14,9 @@ export const useTouristStore = defineStore('tourist', () => {
   const currentSessionNo = ref('');
   const currentSessionAvatarId = ref<number | null>(null);
   const currentScenicId = ref(1);
+  const currentCityId = ref<number | null>(Number(uni.getStorageSync('guido_city_id')) || null);
+  const currentCity = ref<CityVO | null>(null);
+  const cityContext = ref<CityContextVO | null>(null);
 
   function setLogin(nextToken: string, user: TouristInfoVO): void {
     token.value = nextToken;
@@ -30,6 +33,12 @@ export const useTouristStore = defineStore('tourist', () => {
     currentSessionNo.value = sessionNo;
     currentScenicId.value = scenicId;
     currentSessionAvatarId.value = avatarId ?? null;
+  }
+  function setCityContext(context: CityContextVO): void {
+    cityContext.value = context; currentCity.value = context.city;
+    currentCityId.value = context.city?.id ?? null;
+    if (currentCityId.value) uni.setStorageSync('guido_city_id', currentCityId.value);
+    if (context.scenicAreas.length) currentScenicId.value = context.scenicAreas[0].id;
   }
 
   function setAvatarOptions(options: AvatarConfigVO[]): void {
@@ -69,6 +78,7 @@ export const useTouristStore = defineStore('tourist', () => {
     currentSessionNo,
     currentSessionAvatarId,
     currentScenicId,
+    currentCityId, currentCity, cityContext, setCityContext,
     setLogin,
     setProfile,
     setSession,

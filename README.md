@@ -1,5 +1,7 @@
 # 景区导览服务 AI 数字人
 
+当前产品品牌为“旅灵”，定位为可扩展多城市的 AI 旅行定制数字人员工。Phase 3 已加入 City Context 基础架构；在已有数据库初始化后执行 `database/migration/phase3_city_context.sql`，再启动 backend、admin-web 和 tourist-app。
+
 面向景区游客与运营人员的一体化智能导览系统。项目将文本问答、语音交互、拍照识景、本地 RAG、个性化路线推荐和游客行为分析整合到同一业务中，并提供 UniApp 游客端、Vue 3 管理后台与 Spring Boot 后端服务。
 
 | 项目信息 | 内容 |
@@ -232,7 +234,6 @@ mvn spring-boot:run
 ```powershell
 cd admin-web
 corepack pnpm install --frozen-lockfile
-$env:VITE_API_BASE_URL = 'http://localhost:8080/api'
 corepack pnpm exec vite
 ```
 

@@ -3,14 +3,14 @@
     <view class="auth-hero">
       <image class="auth-visual" src="/static/images/auth-guide-visual.webp" mode="aspectFill" />
       <view class="auth-hero__badge">
-        <text class="auth-hero__badge-text">景区智能导游</text>
+        <text class="auth-hero__badge-text">旅灵 · AI 旅行数字员工</text>
       </view>
-      <text class="auth-hero__title">探索每一处风景的故事</text>
-      <text class="auth-hero__desc">登录后保存兴趣偏好、历史对话和个性化路线</text>
+      <text class="auth-hero__title">让每一次出发，都有人替你想好</text>
+      <text class="auth-hero__desc">登录后保存旅行计划、历史对话和个性化偏好</text>
     </view>
 
     <view class="auth-card">
-      <text class="auth-card__title">游客登录</text>
+      <text class="auth-card__title">欢迎回来</text>
 
       <view class="field-group">
         <view class="field-label">手机号</view>

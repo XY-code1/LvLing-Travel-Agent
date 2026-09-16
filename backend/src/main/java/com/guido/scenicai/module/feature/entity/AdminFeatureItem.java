@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 @TableName("admin_feature_item")
 public class AdminFeatureItem extends BaseEntity {
 
+    private Long cityId;
     private String moduleType;
     private Long scenicId;
     private Long relatedId;

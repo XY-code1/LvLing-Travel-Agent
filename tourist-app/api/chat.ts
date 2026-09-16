@@ -6,6 +6,7 @@ export interface ChatStreamHandlers {
   onAsr?: (text: string) => void;
   onMeta?: (messageId: number) => void;
   onDelta?: (text: string) => void;
+  onError?: (message: string) => void;
   onSources?: (hitKb: number, sources: ChatAnswerVO['sources']) => void;
   onEmotion?: (emotion: string) => void;
   onAudio?: (audioUrl: string | null) => void;
@@ -79,6 +80,8 @@ function applyEvent(
     handlers?.onMeta?.(numberField(payload, 'messageId', 0));
   } else if (event.event === 'delta') {
     handlers?.onDelta?.(stringField(payload, 'text', ''));
+  } else if (event.event === 'error') {
+    handlers?.onError?.(stringField(payload, 'message', 'AI 服务暂不可用，请检查后台配置。'));
   } else if (event.event === 'sources') {
     handlers?.onSources?.(numberField(payload, 'hit', 0), sourceArray(payload.sources));
   } else if (event.event === 'emotion') {
@@ -108,6 +111,8 @@ function toChatAnswer(events: Array<{ event: string; data: string }>): ChatAnswe
       messageId = numberField(payload, 'messageId', messageId);
     } else if (item.event === 'delta') {
       answer += stringField(payload, 'text', '');
+    } else if (item.event === 'error') {
+      answer = stringField(payload, 'message', 'AI 服务暂不可用，请检查后台配置。');
     } else if (item.event === 'sources') {
       hitKb = numberField(payload, 'hit', hitKb);
       sources = sourceArray(payload.sources);

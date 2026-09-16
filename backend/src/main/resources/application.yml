@@ -104,3 +104,6 @@ logging:
 demo:
   switch:
     enabled: false
+
+amap:
+  web-service-key: ${AMAP_WEB_SERVICE_KEY:}
