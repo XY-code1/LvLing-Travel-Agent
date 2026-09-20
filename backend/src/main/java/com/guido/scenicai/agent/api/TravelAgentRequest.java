@@ -20,4 +20,6 @@ public class TravelAgentRequest {
     private List<String> preferences;
     private List<String> constraints;
     private String conversationId;
+    private Double longitude;
+    private Double latitude;
 }

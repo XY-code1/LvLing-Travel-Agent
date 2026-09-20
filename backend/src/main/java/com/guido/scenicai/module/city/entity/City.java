@@ -1,6 +1,7 @@
 package com.guido.scenicai.module.city.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.guido.scenicai.common.base.BaseEntity;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -11,6 +12,12 @@ import java.math.BigDecimal;
 @EqualsAndHashCode(callSuper = true)
 @TableName("city")
 public class City extends BaseEntity {
+    @TableField(exist = false)
+    private String cityKey;
+    @TableField(exist = false)
+    private String adcode;
+    @TableField(exist = false)
+    private String source;
     private String cityCode;
     private String cityName;
     private String province;

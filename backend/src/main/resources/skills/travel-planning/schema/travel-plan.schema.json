@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TravelPlanningResult",
+  "type": "object",
+  "required": ["summary", "itinerary", "warnings", "validation", "toolTrace"],
+  "properties": {
+    "summary": { "type": "string" },
+    "itinerary": { "type": "array" },
+    "estimatedBudget": { "type": ["number", "null"] },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "validation": { "type": "object" },
+    "toolTrace": { "type": "array" }
+  }
+}

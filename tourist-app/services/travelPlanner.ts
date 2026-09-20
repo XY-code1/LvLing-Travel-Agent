@@ -1,5 +1,6 @@
 import { recommendRoute } from '../api/route';
 import { geocodeAmap, getAmapWeather, searchAmapPoi } from './amapService';
+import { runTravelAgent, type AgentCoordinate, type AgentPlanResponse, type AgentRouteData, type AgentTrace, type AgentWeatherData } from './travelAgentService';
 import type {
   PlannerStep,
   RouteRecommendVO,
@@ -21,17 +22,22 @@ export interface TravelPlanResult {
   request: TravelRequest;
   routes: RouteRecommendVO[];
   plan: TravelPlan;
+  agentMessage: string;
+  agentLatencyMs: number;
+  agentIntent: AgentPlanResponse['intent'];
+  executionTrace: AgentTrace[];
 }
 
 export function parseTravelRequest(rawText: string, fallbackDestination?: string): TravelRequest {
   const raw = rawText.trim();
-  const destinationMatch = raw.match(/([\u4e00-\u9fa5]{2,8})(?=玩|旅行|旅游)/);
+  const destinationMatch = raw.match(/(?:今天|明天|后天)?(?:在|去)([\u4e00-\u9fa5]{2,8}?)(?=玩|旅行|旅游)/)
+    || raw.match(/([\u4e00-\u9fa5]{2,8})(?=玩|旅行|旅游)/);
   const dateMatch = raw.match(/(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}月\d{1,2}日)/);
   const daysMatch = raw.match(/([0-9一二两三四五六七八九十]+)\s*(?:天|日)/);
   const budgetMatch = raw.match(/预算\s*(?:¥|￥)?\s*([\d,]+)/i);
   const travelersMatch = raw.match(/([0-9一二两三四五六七八九十]+)\s*个?人/);
 
-  const destination = destinationMatch?.[1] || fallbackDestination || null;
+  const destination = destinationMatch?.[1] || validCity(fallbackDestination);
   const days = daysMatch ? parseNumber(daysMatch[1]) : null;
   const travelers = travelersMatch ? parseNumber(travelersMatch[1]) : null;
   const budget = budgetMatch ? Number(budgetMatch[1].replace(/,/g, '')) : null;
@@ -55,22 +61,64 @@ export function parseTravelRequest(rawText: string, fallbackDestination?: string
 export async function planTravel(
   scenicId: number,
   rawText: string,
-  fallbackDestination?: string
+  fallbackDestination?: string,
+  location?: AgentCoordinate | null,
+  onAgentResponse?: (response: AgentPlanResponse) => void
 ): Promise<TravelPlanResult> {
   const request = parseTravelRequest(rawText, fallbackDestination);
   const routePreference = request.preferences.join('、')
     || request.requiredPlaces.join('、')
     || '经典轻松';
-  const routes = await recommendRoute(scenicId, routePreference);
+  const needsConfiguredRoute = scenicId > 0 && !request.destination
+    && !/天气/.test(rawText) && !/从.+(?:到|去).+/.test(rawText);
+  const [routes, agent] = await Promise.all([
+    needsConfiguredRoute ? recommendRoute(scenicId, routePreference) : Promise.resolve([]),
+    runTravelAgent(rawText, validCity(request.destination) || validCity(fallbackDestination) || '', location)
+  ]);
+  onAgentResponse?.(agent);
+  const agentRoute = agent.executionResults.find((item) => item.toolName === 'amap.route' && item.status === 'SUCCESS')?.data as AgentRouteData | undefined;
+  const agentWeather = agent.executionResults.find((item) => item.toolName === 'amap.weather' && item.status === 'SUCCESS')?.data as AgentWeatherData | undefined;
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+    console.info('[TravelAgent] tool results', JSON.stringify(agent.executionResults.map((item) => ({
+      taskId: item.taskId,
+      toolName: item.toolName,
+      status: item.status,
+      errorCode: item.errorCode,
+      message: item.message
+    }))));
+    console.info('[TravelAgent] route result', agentRoute
+      ? { distanceMeters: agentRoute.distanceMeters, durationSeconds: agentRoute.durationSeconds,
+          polylinePoints: agentRoute.polyline?.length || 0, provider: agentRoute.provider }
+      : null);
+  }
   const route = routes[0] || null;
   const spots = route?.spots || [];
   const localActivities = spots.map((spot, index) => activityFromSpot(spot, index, route?.estimateMinutes || null));
-  const destination = request.destination || fallbackDestination || '';
+  const destination = request.destination || validCity(fallbackDestination) || '';
   const [placeResolution, weatherResolution] = await Promise.all([
     resolveRequiredPlaces(request.requiredPlaces, destination),
-    resolveWeather(destination)
+    agentWeather ? Promise.resolve(agentWeather) : resolveWeather(destination)
   ]);
-  const activities = placeResolution.activities.length === request.requiredPlaces.length && placeResolution.activities.length
+  const resolvedWeather = agentWeather || weatherResolution;
+  const agentActivities = agentRoute ? activitiesFromAgentRoute(agentRoute) : [];
+  const itineraryDays = (agent.itinerary || []).map(day => ({
+    day: day.day,
+    title: day.theme,
+    activities: day.items.map(item => ({
+      time: item.time,
+      poi: { id: null, name: item.name },
+      coordinates: { longitude: item.longitude ?? null, latitude: item.latitude ?? null },
+      duration: item.durationMinutes,
+      transport: item.sequence === 1 ? '抵达' : '公共交通 / 接驳',
+      estimatedCost: null,
+      reason: item.reason
+    } satisfies TravelActivity))
+  }));
+  const activities = itineraryDays[0]?.activities.length
+    ? itineraryDays[0].activities
+    : agentActivities.length
+    ? agentActivities
+    : placeResolution.activities.length === request.requiredPlaces.length && placeResolution.activities.length
     ? placeResolution.activities
     : localActivities;
   const routeMatchesDestination = !request.destination
@@ -79,15 +127,18 @@ export async function planTravel(
   const hasCoordinates = spots.length > 0 && spots.every((spot) =>
     typeof spot.longitude === 'number' && typeof spot.latitude === 'number'
   );
-  const totalDistanceKm = hasCoordinates ? calculateDistanceKm(spots) : null;
+  const totalDistanceKm = agentRoute ? Number((agentRoute.distanceMeters / 1000).toFixed(1))
+    : hasCoordinates ? calculateDistanceKm(spots) : null;
   const travelers = request.travelers || 1;
   const days = request.days || 1;
   const transport = spots.length ? Math.max(30, spots.length * 15) : null;
   const dining = spots.length ? days * travelers * 120 : null;
-  const estimatedTotal = transport !== null && dining !== null ? transport + dining : null;
+  const estimatedTotal = agent.budget?.total ?? (transport !== null && dining !== null ? transport + dining : null);
   const mapCoordinatesReady = activities.length > 0 && activities.every((activity) =>
     Number.isFinite(activity.coordinates.longitude) && Number.isFinite(activity.coordinates.latitude));
-  const routeCheck = route || placeResolution.activities.length
+  const routeCheck = agentRoute
+    ? check('PASS', `${agentRoute.origin}到${agentRoute.destination}真实${agentRoute.routeMode === 'walking' ? '步行' : ''}路线：${agentRoute.distanceMeters}米，约${Math.max(1, Math.round(agentRoute.durationSeconds / 60))}分钟。`, 'amap.route')
+    : route || placeResolution.activities.length
     ? routeMatchesDestination && mapCoordinatesReady
       ? check('PASS', '路线点位与坐标已准备完成。', 'route.recommend')
       : check('WARN', routeMatchesDestination
@@ -101,14 +152,22 @@ export async function planTravel(
       : estimatedTotal <= request.budget
         ? check('PASS', `已估算约 ¥${estimatedTotal}，低于 ¥${request.budget} 预算。`, 'planner.rule')
         : check('WARN', `已估算约 ¥${estimatedTotal}，高于 ¥${request.budget} 预算，需调整。`, 'planner.rule');
-  const steps = buildSteps(request, route, spots.length, routeMatchesDestination);
-  const summary = route
+  const steps = agent.executionTrace.map((trace) => step(String(trace.taskId), traceLabel(trace.toolName),
+    trace.status === 'SUCCESS' ? 'DONE' : trace.status === 'FAILED' ? 'ERROR' : 'PENDING',
+    trace.status === 'SUCCESS' ? `真实工具执行完成，耗时 ${trace.durationMs}ms。` : '当前工具未完成。'));
+  const summary = agentRoute
+    ? `${agentRoute.origin} → ${agentRoute.destination} · ${(agentRoute.distanceMeters / 1000).toFixed(1)}公里 · 约${Math.max(1, Math.round(agentRoute.durationSeconds / 60))}分钟`
+    : route
     ? `${request.destination || fallbackDestination || '当前城市'} · ${request.days || 1}天计划已生成；${routeMatchesDestination ? '路线沿用当前城市资料。' : '目标城市 POI 尚未同步，当前先展示已配置路线。'}`
     : `${request.destination || fallbackDestination || '当前城市'} · 已识别需求，等待可用路线资料。`;
 
   return {
     request,
     routes,
+    agentIntent: agent.intent,
+    executionTrace: agent.executionTrace,
+    agentMessage: agent.message,
+    agentLatencyMs: agent.latencyMs,
     plan: {
       request,
       summary,
@@ -123,8 +182,9 @@ export async function planTravel(
         note: '交通与餐饮为规则估算；门票、天气和开放时间尚未接入。'
       },
       checks: {
-        weather: weatherResolution
-          ? check('PASS', `${weatherResolution.city}当前${weatherResolution.weather}，${weatherResolution.temperature}℃。`, 'amap.weather')
+        weather: resolvedWeather
+          ? check(severeWeather(resolvedWeather.weather) ? 'WARN' : 'PASS',
+            `${resolvedWeather.city}${resolvedWeather.weather}，${resolvedWeather.temperature}℃，湿度${resolvedWeather.humidity || '预报暂不提供'}，${resolvedWeather.windDirection}风${resolvedWeather.windPower}级，更新于${resolvedWeather.reportTime}。`, 'amap.weather')
           : check('PENDING', '高德天气尚未返回数据，请检查 Web Service Key。', 'amap.weather.pending'),
         openingHours: check('PENDING', '路线接口未返回景点开放时间。', 'scenic.openingHours.pending'),
         route: routeCheck,
@@ -133,11 +193,44 @@ export async function planTravel(
           : check('PENDING', '没有足够点位可检查时间冲突。', 'planner.schedule'),
         budget: budgetCheck
       },
-      days: activities.length ? [{ day: 1, title: '轻松游览日', activities }] : [],
+      days: itineraryDays.length ? itineraryDays : activities.length ? [{ day: 1, title: '轻松游览日', activities }] : [],
       steps,
-      routeId: route?.routeId || null
+      routeId: route?.routeId || null,
+      route: agentRoute ? {
+        origin: agentRoute.origin,
+        destination: agentRoute.destination,
+        distanceMeters: agentRoute.distanceMeters,
+        durationSeconds: agentRoute.durationSeconds,
+        polyline: agentRoute.polyline,
+        provider: agentRoute.provider
+      } : null
     }
   };
+}
+
+function validCity(value?: string | null): string | null {
+  return value && value !== '探索城市' ? value : null;
+}
+
+function severeWeather(weather: string): boolean {
+  return /暴雨|大雨|雷|台风|暴雪|高温/.test(weather);
+}
+
+function activitiesFromAgentRoute(route: AgentRouteData): TravelActivity[] {
+  return [
+    { time: '起点', poi: { id: null, name: route.origin }, coordinates: route.originCoordinates,
+      duration: null, transport: route.routeMode === 'walking' ? '步行出发' : route.routeMode,
+      estimatedCost: 0, reason: `坐标与路线来自${route.provider}。` },
+    { time: '到达', poi: { id: null, name: route.destination }, coordinates: route.destinationCoordinates,
+      duration: Math.max(1, Math.round(route.durationSeconds / 60)), transport: '到达目的地',
+      estimatedCost: 0, reason: `真实路线共${route.distanceMeters}米。` }
+  ];
+}
+
+function traceLabel(toolName: string | null): string {
+  return toolName === 'amap.route' ? '获取真实路线'
+    : toolName === 'amap.weather' ? '查询真实天气'
+      : '处理旅行任务';
 }
 
 async function resolveRequiredPlaces(names: string[], city: string): Promise<{ activities: TravelActivity[] }> {

@@ -2,6 +2,7 @@ package com.guido.scenicai.integration.amap;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.guido.scenicai.common.exception.BizException;
+import com.guido.scenicai.domain.route.RouteResult;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -12,6 +13,9 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.ArgumentMatchers.argThat;
 
 class AmapRouteProviderTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -23,7 +27,7 @@ class AmapRouteProviderTest {
                 .thenReturn(objectMapper.readTree(response("100", "60", "120.1,30.1;120.2,30.2")))
                 .thenReturn(objectMapper.readTree(response("200", "120", "120.2,30.2;120.3,30.3")));
 
-        AmapRouteProvider.Route route = new AmapRouteProvider(client).walking(List.of(
+        RouteResult route = new AmapRouteProvider(client).walking(List.of(
                 new AmapPoiProvider.Coordinate(120.1, 30.1),
                 new AmapPoiProvider.Coordinate(120.2, 30.2),
                 new AmapPoiProvider.Coordinate(120.3, 30.3)));
@@ -31,6 +35,8 @@ class AmapRouteProviderTest {
         assertEquals(300, route.distanceMeters());
         assertEquals(180, route.durationSeconds());
         assertEquals(3, route.polyline().size());
+        verify(client, atLeastOnce()).get(eq("/v5/direction/walking"), argThat(parameters ->
+                "cost,polyline".equals(parameters.get("show_fields"))));
     }
 
     @Test

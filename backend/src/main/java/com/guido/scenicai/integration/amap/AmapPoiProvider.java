@@ -21,13 +21,24 @@ public class AmapPoiProvider {
             Coordinate coordinate = Coordinate.parse(node.path("location").asText());
             if (coordinate != null) {
                 result.add(new Poi(node.path("id").asText(), node.path("name").asText(),
-                        node.path("address").asText(), coordinate));
+                        node.path("address").asText(), node.path("type").asText(),
+                        integer(node.path("distance").asText()), coordinate));
             }
         }
         return result;
     }
 
-    public record Poi(String id, String name, String address, Coordinate coordinates) {}
+    private Integer integer(String value) {
+        try { return value == null || value.isBlank() ? null : Integer.valueOf(value); }
+        catch (NumberFormatException ignored) { return null; }
+    }
+
+    public record Poi(String id, String name, String address, String type, Integer distanceMeters,
+                      Coordinate coordinates) {
+        public Poi(String id, String name, String address, Coordinate coordinates) {
+            this(id, name, address, "", null, coordinates);
+        }
+    }
 
     public record Coordinate(double longitude, double latitude) {
         static Coordinate parse(String value) {

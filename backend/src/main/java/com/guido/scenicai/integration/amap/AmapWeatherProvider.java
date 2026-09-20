@@ -25,6 +25,21 @@ public class AmapWeatherProvider {
                 live.path("humidity").asText(), live.path("reporttime").asText());
     }
 
+    public Weather forecast(String city, int dayOffset) {
+        JsonNode geocode = client.get("/v3/geocode/geo", Map.of("address", city, "city", city))
+                .path("geocodes").path(0);
+        String adcode = geocode.path("adcode").asText();
+        if (adcode.isBlank()) return null;
+        JsonNode forecast = client.get("/v3/weather/weatherInfo", Map.of("city", adcode, "extensions", "all"))
+                .path("forecasts").path(0);
+        JsonNode cast = forecast.path("casts").path(Math.max(0, dayOffset));
+        if (cast.isMissingNode()) return null;
+        return new Weather(forecast.path("province").asText(), forecast.path("city").asText(),
+                cast.path("dayweather").asText(), cast.path("daytemp").asText(),
+                cast.path("daywind").asText(), cast.path("daypower").asText(), "",
+                forecast.path("reporttime").asText());
+    }
+
     public record Weather(String province, String city, String weather, String temperature,
                           String windDirection, String windPower, String humidity, String reportTime) {}
 }

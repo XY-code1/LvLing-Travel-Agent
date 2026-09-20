@@ -15,10 +15,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Value("${file.upload.path:./uploads}")
     private String uploadPath;
 
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:5175}")
+    private String[] allowedOrigins;
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOriginPatterns("*")
+                .allowedOriginPatterns(allowedOrigins)
                 .allowedMethods("*")
                 .allowedHeaders("*")
                 .allowCredentials(true)

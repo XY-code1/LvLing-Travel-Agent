@@ -27,6 +27,30 @@
       }
     },
     {
+      "path": "pages/ai-travel/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "AI旅行" }
+    },
+    {
+      "path": "pages/cities/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "城市探索" }
+    },
+    {
+      "path": "pages/spots/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "景点" }
+    },
+    {
+      "path": "pages/services/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "服务查询" }
+    },
+    {
+      "path": "pages/announcements/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "城市公告" }
+    },
+    {
+      "path": "pages/sos/index",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "SOS求助" }
+    },
+    {
       "path": "pages/inspiration/index",
       "style": {
         "navigationBarTitleText": "旅行灵感"
@@ -41,6 +65,7 @@
     {
       "path": "pages/route/index",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "路线推荐"
       }
     },

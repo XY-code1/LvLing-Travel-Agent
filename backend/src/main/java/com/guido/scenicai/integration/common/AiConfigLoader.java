@@ -7,7 +7,9 @@ import com.guido.scenicai.common.security.CredentialCrypto;
 import com.guido.scenicai.module.aiconfig.entity.AiServiceConfig;
 import com.guido.scenicai.module.aiconfig.mapper.AiServiceConfigMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 @Component
 @RequiredArgsConstructor
@@ -16,7 +18,18 @@ public class AiConfigLoader {
     private final AiServiceConfigMapper aiServiceConfigMapper;
     private final CredentialCrypto credentialCrypto;
 
+    @Value("${LLM_BASE_URL:}")
+    private String llmBaseUrl;
+    @Value("${LLM_MODEL:}")
+    private String llmModel;
+    @Value("${OPENAI_API_KEY:}")
+    private String openAiApiKey;
+
     public AiConfigSnapshot loadDefault(String serviceType) {
+        if ("LLM".equals(serviceType) && StringUtils.hasText(llmBaseUrl)
+                && StringUtils.hasText(llmModel) && StringUtils.hasText(openAiApiKey)) {
+            return environmentLlmConfig();
+        }
         AiServiceConfig config = aiServiceConfigMapper.selectOne(new LambdaQueryWrapper<AiServiceConfig>()
                 .eq(AiServiceConfig::getServiceType, serviceType)
                 .eq(AiServiceConfig::getEnabled, 1)
@@ -26,6 +39,19 @@ public class AiConfigLoader {
             throw new BizException(ResultCode.AI_CONFIG_MISSING.getCode(), "AI 服务未配置或未启用：" + serviceType);
         }
         return toSnapshot(config);
+    }
+
+    private AiConfigSnapshot environmentLlmConfig() {
+        AiConfigSnapshot snapshot = new AiConfigSnapshot();
+        snapshot.setServiceType("LLM");
+        snapshot.setProvider("OPENAI_COMPATIBLE");
+        snapshot.setProtocol("OPENAI_COMPATIBLE");
+        snapshot.setBaseUrl(llmBaseUrl);
+        snapshot.setApiKey(openAiApiKey);
+        snapshot.setModelName(llmModel);
+        snapshot.setTimeoutMs(30000);
+        snapshot.setRetryCount(1);
+        return snapshot;
     }
 
     private AiConfigSnapshot toSnapshot(AiServiceConfig config) {

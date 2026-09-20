@@ -25,6 +25,11 @@ const props = defineProps<{
   activities: TravelActivity[];
   cityName: string;
   cityCenter?: { longitude: number | null; latitude: number | null } | null;
+  route?: { distanceMeters: number; durationSeconds: number; polyline: AmapCoordinate[] } | null;
+}>();
+const emit = defineEmits<{
+  location: [value: { longitude: number; latitude: number; city: string }];
+  locationError: [message: string];
 }>();
 
 const status = ref<'loading' | 'ready' | 'unconfigured' | 'error'>('loading');
@@ -56,21 +61,40 @@ async function init(): Promise<void> {
   }
   (window as any)._AMapSecurityConfig = { securityJsCode: __AMAP_SECURITY_CODE__ };
   try {
-    AMap = await loadAmap({ key: __AMAP_JS_KEY__, version: '2.0', plugins: ['AMap.Scale', 'AMap.ToolBar'] });
+    AMap = await loadAmap({ key: __AMAP_JS_KEY__, version: '2.0', plugins: ['AMap.Scale', 'AMap.ToolBar', 'AMap.Geolocation'] });
     await nextTick();
     const center = props.cityCenter && Number.isFinite(props.cityCenter.longitude) && Number.isFinite(props.cityCenter.latitude)
       ? [props.cityCenter.longitude, props.cityCenter.latitude]
-      : [120.1551, 30.2741];
-    map = new AMap.Map('guido-amap-container', { zoom: 11, center, viewMode: '2D', resizeEnable: true });
+      : [104.1954, 35.8617];
+    map = new AMap.Map('guido-amap-container', { zoom: props.cityCenter ? 11 : 4, center, viewMode: '2D', resizeEnable: true });
     map.addControl(new AMap.Scale());
     map.addControl(new AMap.ToolBar({ position: { top: '12px', right: '12px' } }));
     status.value = 'ready';
+    locateCurrentPosition();
     await renderPlan();
   } catch (error) {
     console.error('[AMap] load failed', error);
     status.value = 'error';
     statusMessage.value = error instanceof Error ? error.message : '请检查 JS API Key、securityJsCode 与域名白名单。';
   }
+}
+
+function locateCurrentPosition(): void {
+  if (!map || !AMap) return;
+  const geolocation = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000, position: 'RB', zoomToAccuracy: true });
+  map.addControl(geolocation);
+  geolocation.getCurrentPosition((resultStatus: string, result: any) => {
+    if (resultStatus !== 'complete' || !result?.position) {
+      emit('locationError', '无法获取当前位置，请授权定位或手动选择城市。');
+      return;
+    }
+    const value = {
+      longitude: Number(result.position.lng),
+      latitude: Number(result.position.lat),
+      city: result.addressComponent?.city || result.addressComponent?.province || ''
+    };
+    emit('location', value);
+  });
 }
 
 async function renderPlan(): Promise<void> {
@@ -111,7 +135,7 @@ async function renderPlan(): Promise<void> {
       longitude: item.coordinates.longitude as number,
       latitude: item.coordinates.latitude as number
     }));
-    const route = await planAmapWalkingRoute(points);
+    const route = props.route?.polyline?.length ? props.route : await planAmapWalkingRoute(points);
     if (sequence !== renderSequence) return;
     if (!route.polyline.length) throw new Error('高德未返回可用路线');
     const polyline = new AMap.Polyline({
@@ -142,6 +166,7 @@ function escapeHtml(value: string): string {
 
 onMounted(() => { void init(); });
 watch(() => props.activities, () => { void renderPlan(); }, { deep: true });
+watch(() => props.route, () => { void renderPlan(); }, { deep: true });
 watch(() => props.cityCenter, (center) => {
   if (map && center && Number.isFinite(center.longitude) && Number.isFinite(center.latitude) && !validActivities().length) {
     map.setCenter([center.longitude, center.latitude]);

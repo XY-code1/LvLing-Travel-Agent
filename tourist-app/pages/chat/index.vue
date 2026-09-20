@@ -1,6 +1,6 @@
 <template>
   <view class="planner-page">
-    <AppHeader active="planner" :current-city="cityLabel" />
+    <AppHeader />
 
     <view class="planner-shell">
       <view class="planner-heading">
@@ -41,7 +41,7 @@
               <text class="panel-title">AI对话</text>
               <text class="panel-caption">灵灵会结合城市资料回答</text>
             </view>
-            <view class="panel-status"><view class="status-dot" />在线</view>
+            <view class="panel-status"><view class="status-dot" />{{ aiLive ? 'AI：Live' : 'AI：Demo fallback' }}</view>
           </view>
 
           <view v-if="travelRequest" class="request-summary">
@@ -91,6 +91,18 @@
             <button class="button" :loading="loading" @tap="sendText">发送</button>
             <VoiceButton :recording="recording" :loading="voiceLoading" @toggle="toggleRecord" />
           </view>
+          <view v-if="isDev" class="agent-debug">
+            <text>Agent Debug</text>
+            <text>request: {{ agentDebug.request }}</text>
+            <text>HTTP: {{ agentDebug.http }}</text>
+            <text>rawMessage: {{ agentDebug.rawMessage }} chars</text>
+            <text>normalizedMessage: {{ agentDebug.normalizedMessage }} chars</text>
+            <text>itinerary: {{ agentDebug.itineraryDays }} days</text>
+            <text>latency: {{ agentDebug.latency }} ms</text>
+            <text>errorType: {{ agentDebug.errorType || 'none' }}</text>
+            <text>errorMessage: {{ agentDebug.errorMessage || 'none' }}</text>
+            <text>requestUrl: {{ agentDebug.requestUrl || 'none' }}</text>
+          </view>
         </view>
 
         <view :class="['planner-panel', 'planner-panel--itinerary', activeTab !== 'itinerary' && 'planner-panel--mobile-hidden']">
@@ -132,6 +144,21 @@
                 </view>
               </view>
             </view>
+            <view v-for="planDay in (travelPlan?.days.slice(1) || [])" :key="planDay.day">
+              <view class="route-summary">
+                <text class="route-summary__title">{{ planDay.title }}</text>
+                <text class="route-summary__meta">DAY {{ String(planDay.day).padStart(2, '0') }} · {{ planDay.activities.length }} 个安排</text>
+              </view>
+              <view class="timeline">
+                <view v-for="activity in planDay.activities" :key="`${planDay.day}-${activity.poi.name}-${activity.time}`" class="timeline__item">
+                  <view class="timeline__marker">{{ activity.time }}</view>
+                  <view class="timeline__copy">
+                    <text class="timeline__name">{{ activity.poi.name }}</text>
+                    <text class="timeline__hint">{{ activity.transport || '行程安排' }} · 约 {{ activity.duration || 60 }} 分钟</text>
+                  </view>
+                </view>
+              </view>
+            </view>
           </view>
           <view v-else class="workspace-empty">
             <view class="workspace-empty__icon">✦</view>
@@ -154,7 +181,8 @@
             </view>
           </view>
           <view class="map-live">
-            <AmapPlannerMap :activities="mapActivities" :city-name="cityLabel" :city-center="cityCenter" />
+            <AmapPlannerMap :activities="mapActivities" :city-name="cityLabel" :city-center="cityCenter" :route="travelPlan?.route"
+              @location="handleMapLocation" @location-error="handleLocationError" />
             <view v-if="nearbySpots.length" class="nearby-list map-live__nearby">
               <text class="nearby-list__label">当前位置附近</text>
               <view v-for="spot in nearbySpots" :key="spot.spotId" class="nearby-list__item">
@@ -174,6 +202,7 @@
           <text :class="['check-icon', `check-icon--${item.check.status.toLowerCase()}`]">{{ checkIcon(item.check.status) }}</text>
           <text>{{ item.label }}</text>
           <text class="check-status">{{ checkStatusText(item.check.status) }}</text>
+          <text v-if="item.key === 'weather' && item.check.status !== 'PENDING'" class="check-detail">{{ item.check.message }}</text>
         </view>
       </view>
     </view>
@@ -181,24 +210,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 
 import { getCurrentAvatar } from '../../api/avatar';
 import { askTextStream, askVoiceStream, createSession, getSessionMessages, type ChatStreamHandlers } from '../../api/chat';
-import { getNearbySpots } from '../../api/scenic';
-import { planTravel } from '../../services/travelPlanner';
+import { parseTravelRequest, planTravel } from '../../services/travelPlanner';
+import { resolveCityContext } from '../../api/scenic';
 import AvatarBox from '../../components/AvatarBox/index.vue';
 import ChatBubble from '../../components/ChatBubble/index.vue';
 import AppHeader from '../../components/layout/AppHeader.vue';
 import AmapPlannerMap from '../../components/planner/AmapPlannerMap.vue';
 import VoiceButton from '../../components/VoiceButton/index.vue';
+import { initializeCityContext } from '../../composables/useCityContext';
 import { navigateTo } from '../../router';
 import { useTouristStore } from '../../stores';
 import type {
   ChatAnswerVO,
   MessageVO,
-  NearbySpotVO,
+  CityPoiVO,
   PlannerCheckStatus,
   RouteRecommendVO,
   SourceVO,
@@ -207,6 +237,7 @@ import type {
 } from '../../types';
 import { isLoggedIn } from '../../utils/auth';
 import { emotionText } from '../../utils/display';
+import { getAiRuntimeStatus, runTravelAgent, type AgentPlanResponse } from '../../services/travelAgentService';
 
 interface MessageItem {
   id: string;
@@ -216,6 +247,9 @@ interface MessageItem {
 
 const store = useTouristStore();
 const loading = ref(false);
+const isDev = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
+const agentDebug = ref({ request: 'idle', http: 0, rawMessage: 0, normalizedMessage: 0, itineraryDays: 0, latency: 0, errorType: '', errorMessage: '', requestUrl: '/api/tourist/agent/plan' });
+const aiLive = ref(false);
 const voiceLoading = ref(false);
 const recording = ref(false);
 const question = ref('');
@@ -224,21 +258,27 @@ const lastAnswer = ref<ChatAnswerVO | null>(null);
 const activeTab = ref<'chat' | 'itinerary' | 'map'>('chat');
 const plannerRoutes = ref<RouteRecommendVO[]>([]);
 const travelPlan = ref<TravelPlan | null>(null);
-const nearbySpots = ref<NearbySpotVO[]>([]);
+const nearbySpots = ref<Array<{ spotId: string; name: string; distanceMeters: number; canGuide: boolean }>>([]);
 const routeLoading = ref(false);
 const locating = ref(false);
 const routeMessage = ref('先生成一条当前城市的真实路线，之后再用左侧 AI 对话细化偏好。');
+const latestAgentMessage = ref('');
+const latestAgentLatencyMs = ref(0);
 const locationMessage = ref('尚未获取当前位置');
+const currentLocation = ref<{ longitude: number; latitude: number; city: string } | null>(null);
 const sessionNo = computed(() => store.currentSessionNo);
-const cityLabel = computed(() => store.currentCity?.cityName || '探索城市');
+const cityLabel = computed(() => store.travelTaskContext?.destinationCity?.cityName
+  || store.currentCity?.cityName || store.featuredCityContext?.city?.cityName || '探索城市');
 const activeRoute = computed(() => plannerRoutes.value[0] || null);
 const activeRouteSpots = computed(() => activeRoute.value?.spots || []);
 const travelRequest = computed<TravelRequest | null>(() => travelPlan.value?.request || null);
 const activePlanDay = computed(() => travelPlan.value?.days[0] || null);
 const mapActivities = computed(() => activePlanDay.value?.activities || []);
-const cityCenter = computed(() => store.currentCity ? {
-  longitude: store.currentCity.longitude,
-  latitude: store.currentCity.latitude
+const activeCity = computed(() => store.travelTaskContext?.destinationCity || store.currentCity
+  || store.featuredCityContext?.city || null);
+const cityCenter = computed(() => activeCity.value ? {
+  longitude: activeCity.value.longitude,
+  latitude: activeCity.value.latitude
 } : null);
 const plannerChecks = computed(() => {
   const pending = (message: string) => ({
@@ -260,6 +300,16 @@ let uniRecorder: ReturnType<typeof uni.getRecorderManager> | null = null;
 let mediaRecorder: MediaRecorder | null = null;
 let mediaStream: MediaStream | null = null;
 let mediaChunks: BlobPart[] = [];
+let locationPlanPending = false;
+
+watch(() => store.cityContext?.cityKey, (next, previous) => {
+  if (!previous || next === previous) return;
+  plannerRoutes.value = [];
+  travelPlan.value = null;
+  nearbySpots.value = [];
+  currentLocation.value = null;
+  routeMessage.value = `已切换到${cityLabel.value}，请重新生成当前城市路线。`;
+});
 
 onLoad((query) => {
   if (typeof query.question === 'string') {
@@ -272,9 +322,10 @@ onLoad((query) => {
 });
 
 onMounted(() => {
-  if (question.value.trim()) {
-    void loadPlannerRoute(question.value.trim());
-  }
+  void getAiRuntimeStatus().then((status) => { aiLive.value = status.live; }).catch(() => { aiLive.value = false; });
+  void initializeCityContext().catch(() => null).finally(() => {
+    if (question.value.trim()) void loadPlannerRoute(question.value.trim());
+  });
   if (isLoggedIn()) {
     void loadAvatarState()
       .then(() => restoreCurrentSession())
@@ -289,29 +340,101 @@ onBeforeUnmount(() => {
   stopBrowserTracks();
 });
 
-async function loadPlannerRoute(requestText?: string): Promise<void> {
-  if (routeLoading.value) {
-    return;
-  }
+async function loadPlannerRoute(
+  requestText?: string,
+  onAgentResponse?: (response: AgentPlanResponse) => void
+): Promise<Awaited<ReturnType<typeof planTravel>> | null> {
   routeLoading.value = true;
   try {
     const text = typeof requestText === 'string' ? requestText : question.value.trim();
-    const result = await planTravel(store.currentScenicId, text, cityLabel.value);
+    const result = await planTravel(store.currentScenicId, text,
+      currentLocation.value?.city || cityLabel.value, currentLocation.value, onAgentResponse);
     plannerRoutes.value = result.routes;
     travelPlan.value = result.plan;
+    latestAgentMessage.value = result.agentMessage;
+    latestAgentLatencyMs.value = result.agentLatencyMs;
+    try {
+      await syncTravelTaskContext(text, result);
+    } catch (error: unknown) {
+      console.warn('[TravelAgent] context enrichment failed; preserving Agent response', {
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
     routeMessage.value = plannerRoutes.value.length
       ? result.plan.summary
       : '已识别需求，但当前城市暂时没有已配置的公开路线。';
     if (plannerRoutes.value.length) {
       locationMessage.value = '路线点位已准备，可继续定位附近景点。';
     }
+    return result;
   } catch (error: unknown) {
+    console.error('[TravelAgent Failure]', {
+      url: '/api/tourist/agent/plan',
+      status: 0,
+      statusText: '',
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      message: error instanceof Error ? error.message : String(error)
+    });
     plannerRoutes.value = [];
-    travelPlan.value = null;
     routeMessage.value = error instanceof Error ? error.message : '路线加载失败，请稍后重试。';
+    return null;
   } finally {
     routeLoading.value = false;
+    if (locationPlanPending && currentLocation.value) {
+      locationPlanPending = false;
+      void loadPlannerRoute(question.value.trim());
+    }
   }
+}
+
+async function syncTravelTaskContext(text: string, result: Awaited<ReturnType<typeof planTravel>>): Promise<void> {
+  const destination = result.request.destination || cityLabel.value;
+  let destinationContext = store.travelTaskContext?.destinationCityContext || null;
+  if (!destinationContext || destinationContext.city?.cityName !== destination) {
+    destinationContext = await resolveCityContext(destination);
+  }
+  const previous = store.travelTaskContext || store.startTravelTask(text);
+  store.setTravelTaskContext({
+    ...previous,
+    rawRequest: text,
+    currentCity: store.currentCity,
+    destinationCity: destinationContext.city,
+    destinationCityContext: destinationContext,
+    date: result.request.startDate,
+    duration: result.request.days,
+    travelers: result.request.travelers ?? result.agentIntent.partyType,
+    mobility: result.request.mobilityPreference || (result.agentIntent.mobilityConstraint ? 'LOW' : null),
+    budget: result.request.budget,
+    interests: result.request.preferences,
+    mustVisit: result.request.requiredPlaces.length ? result.request.requiredPlaces : result.agentIntent.requestedPois,
+    selectedPois: destinationContext.pois,
+    route: result.plan.route,
+    weather: destinationContext.weather,
+    services: destinationContext.services,
+    validation: result.plan.checks,
+    executionTrace: result.executionTrace.map((step) => ({
+      step: step.step || String(step.taskId), status: step.status, tool: step.toolName, message: step.message || null
+    })),
+    updatedAt: new Date().toISOString()
+  });
+}
+
+function handleMapLocation(value: { longitude: number; latitude: number; city: string }): void {
+  currentLocation.value = value;
+  locationMessage.value = value.city ? `已定位：${value.city}` : '已获取当前位置';
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production') {
+    console.info('[Location] browser coordinates received', { city: value.city, available: true });
+  }
+  rerunCurrentLocationPlan();
+}
+
+function handleLocationError(message: string): void {
+  if (currentLocation.value) {
+    return;
+  }
+  currentLocation.value = null;
+  locationMessage.value = message;
 }
 
 function locateNearby(): void {
@@ -320,7 +443,9 @@ function locateNearby(): void {
   }
   locating.value = true;
   const onSuccess = (longitude: number, latitude: number): void => {
+    currentLocation.value = { longitude, latitude, city: currentLocation.value?.city || '' };
     void loadNearbySpots(longitude, latitude);
+    rerunCurrentLocationPlan();
   };
   const onFailure = (): void => {
     locating.value = false;
@@ -341,9 +466,25 @@ function locateNearby(): void {
   });
 }
 
+function rerunCurrentLocationPlan(): void {
+  const text = question.value.trim();
+  if (text.includes('当前位置')) {
+    if (routeLoading.value) {
+      locationPlanPending = true;
+      return;
+    }
+    void loadPlannerRoute(text);
+  }
+}
+
 async function loadNearbySpots(longitude: number, latitude: number): Promise<void> {
   try {
-    nearbySpots.value = await getNearbySpots(store.currentScenicId, longitude, latitude);
+    nearbySpots.value = cityPoisByDistance(longitude, latitude).slice(0, 8).map(({ poi, distanceMeters }) => ({
+      spotId: poi.id,
+      name: poi.name,
+      distanceMeters,
+      canGuide: poi.source === 'local' && /^\d+$/.test(poi.id)
+    }));
     locationMessage.value = nearbySpots.value.length
       ? `已定位，附近有 ${nearbySpots.value.length} 个可讲解点位。`
       : '已定位，但当前位置附近暂无可讲解点位。';
@@ -353,6 +494,19 @@ async function loadNearbySpots(longitude: number, latitude: number): Promise<voi
   } finally {
     locating.value = false;
   }
+}
+
+function cityPoisByDistance(longitude: number, latitude: number): Array<{ poi: CityPoiVO; distanceMeters: number }> {
+  return (store.experienceCityContext?.pois || []).filter((poi) => poi.longitude != null && poi.latitude != null)
+    .map((poi) => ({ poi, distanceMeters: Math.round(distance(latitude, longitude, poi.latitude!, poi.longitude!) * 1000) }))
+    .sort((left, right) => left.distanceMeters - right.distanceMeters);
+}
+
+function distance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const radians = Math.PI / 180;
+  const value = Math.sin((lat2 - lat1) * radians / 2) ** 2
+    + Math.cos(lat1 * radians) * Math.cos(lat2 * radians) * Math.sin((lng2 - lng1) * radians / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 }
 
 function savePlanner(): void {
@@ -465,7 +619,12 @@ async function ensureSession(): Promise<string> {
 
 async function ensureAvatarLoaded(): Promise<void> {
   if (!store.selectedAvatar) {
-    await loadAvatarState();
+    try {
+      await loadAvatarState();
+    } catch (error) {
+      // Avatar configuration is optional; text chat must still be usable.
+      console.warn('[Chat] avatar unavailable', error);
+    }
   }
 }
 
@@ -505,26 +664,146 @@ async function loadSessionMessages(sessionNoValue: string): Promise<void> {
   }
 }
 
+function normalizeAgentResponse(result: AgentPlanResponse, rawText: string) {
+  const request = parseTravelRequest(rawText, cityLabel.value);
+  const days = (result.itinerary || []).map((day) => ({
+    day: day.day,
+    title: day.theme,
+    activities: day.items.map((item) => ({
+      time: item.time,
+      poi: { id: null, name: item.name },
+      coordinates: { longitude: item.longitude ?? null, latitude: item.latitude ?? null },
+      duration: item.durationMinutes,
+      transport: null,
+      estimatedCost: null,
+      reason: item.reason
+    }))
+  }));
+  return {
+    assistantMessage: result.message?.trim() || '',
+    itinerary: days,
+    budget: { budget: result.budget?.total ?? request.budget, estimatedTotal: result.budget?.total ?? null },
+    route: null,
+    source: result.llmCalled && !result.fallback ? 'LIVE' : 'fallback',
+    latency: result.latencyMs,
+    plan: {
+      request,
+      summary: result.message || `${request.destination || cityLabel.value} 行程已生成`,
+      budget: {
+        budget: request.budget,
+        estimatedTotal: result.budget?.total ?? null,
+        transport: null,
+        dining: null,
+        tickets: null,
+        totalDistanceKm: null,
+        walkingDistanceKm: null,
+        note: '预算来自 Travel Agent。'
+      },
+      checks: {
+        weather: { status: 'PENDING', message: '等待天气 enrichment', source: 'agent' },
+        openingHours: { status: 'PENDING', message: '等待开放时间 enrichment', source: 'agent' },
+        route: { status: 'PENDING', message: '等待路线 enrichment', source: 'agent' },
+        timeConflict: { status: days.length ? 'PASS' : 'PENDING', message: days.length ? 'Agent 已生成行程' : '等待行程', source: 'agent' },
+        budget: { status: result.budget?.total != null ? 'PASS' : 'PENDING', message: '预算来自 Travel Agent', source: 'agent' }
+      },
+      days,
+      steps: [],
+      routeId: null,
+      route: null
+    } as TravelPlan
+  };
+}
+
 async function sendText(): Promise<void> {
+  if (loading.value) return;
+  if (isLoggedIn()) {
+    await sendChatText();
+    return;
+  }
   const text = question.value.trim();
   if (!text) {
     uni.showToast({ title: '请输入问题', icon: 'none' });
     return;
   }
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  agentDebug.value = { ...agentDebug.value, request: 'sending', http: 0, errorType: '', errorMessage: '', requestUrl: '/api/tourist/agent/plan' };
+  console.log('[FrontendRequest]', { text, startTime: Date.now(), url: '/api/tourist/agent/plan' });
   loading.value = true;
   const aiMessageId = `a-${Date.now()}`;
   messages.value.push({ id: `u-${Date.now()}`, role: 'user', text });
   messages.value.push({ id: aiMessageId, role: 'ai', text: '正在思考…' });
   beginAnswer();
   question.value = '';
-  await loadPlannerRoute(text);
+  try {
+    const raw = await runTravelAgent(text, currentLocation.value?.city || cityLabel.value, currentLocation.value);
+    agentDebug.value = { ...agentDebug.value, http: 200, rawMessage: raw.message?.length || 0 };
+    console.log('[FrontendRawResponse]', { status: 200, raw, elapsed: Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt) });
+    const result = normalizeAgentResponse(raw, text);
+    agentDebug.value = { ...agentDebug.value, normalizedMessage: result.assistantMessage.length, itineraryDays: result.itinerary.length };
+    console.log('[FrontendNormalized]', {
+      assistantMessage: result.assistantMessage,
+      assistantMessageLength: result.assistantMessage.length,
+      itineraryDays: result.itinerary.length,
+      budget: result.budget,
+      source: result.source
+    });
+    if (!result.assistantMessage) throw new Error('AGENT_MESSAGE_EMPTY');
+    latestAgentMessage.value = result.assistantMessage;
+    latestAgentLatencyMs.value = Math.max(1, Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt));
+    agentDebug.value = { ...agentDebug.value, request: 'success', latency: latestAgentLatencyMs.value, errorType: '', errorMessage: '' };
+    travelPlan.value = result.plan;
+    patchAnswer({ answer: result.assistantMessage, costMs: latestAgentLatencyMs.value });
+    updateMessage(aiMessageId, result.assistantMessage);
+    console.log('[FrontendState]', {
+      messagesCount: messages.value.length,
+      latestMessage: messages.value[messages.value.length - 1],
+      latestAgentMessage: latestAgentMessage.value,
+      itineraryDays: travelPlan.value.days.length
+    });
+    // Route/weather enrichment remains available through the itinerary route action;
+    // it must never trigger a second Agent request or block this response.
+  } catch (error: unknown) {
+    const fallbackMessage = '灵灵暂时没有生成回复，请稍后重试。';
+    patchAnswer({ answer: fallbackMessage, costMs: 0 });
+    updateMessage(aiMessageId, fallbackMessage);
+    const transportError = error as Error & { errorType?: string; statusCode?: number; requestUrl?: string };
+    agentDebug.value = {
+      ...agentDebug.value,
+      request: 'error',
+      http: transportError.statusCode ?? 0,
+      latency: Math.max(1, Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - startedAt)),
+      errorType: transportError.errorType || transportError.name || 'UNKNOWN_ERROR',
+      errorMessage: transportError.message,
+      requestUrl: transportError.requestUrl || '/api/tourist/agent/plan'
+    };
+    console.error('[TravelAgent Failure]', {
+      url: '/api/tourist/agent/plan',
+      status: 0,
+      statusText: '',
+      errorName: error instanceof Error ? error.name : 'UnknownError',
+      message: error instanceof Error ? error.message : String(error)
+    });
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function sendChatText(): Promise<void> {
+  const text = question.value.trim();
+  if (!text) return;
+  loading.value = true;
+  const aiMessageId = `a-${Date.now()}`;
+  messages.value.push({ id: `u-${Date.now()}`, role: 'user', text });
+  messages.value.push({ id: aiMessageId, role: 'ai', text: '正在思考…' });
+  question.value = '';
+  beginAnswer();
   try {
     const answer = await askTextStream(await ensureSession(), text, undefined, streamHandlers(aiMessageId));
     finishAnswer(aiMessageId, answer);
   } catch (error: unknown) {
-    removeMessage(aiMessageId);
-    const message = error instanceof Error ? error.message : '问答失败';
-    uni.showToast({ title: message, icon: 'none' });
+    const message = error instanceof Error ? error.message : '对话失败，请稍后重试';
+    patchAnswer({ answer: message });
+    updateMessage(aiMessageId, message);
   } finally {
     loading.value = false;
   }
@@ -1312,6 +1591,8 @@ function removeMessage(id: string): void {
 .check-icon--pending { color: #8b958e; background: #edf0ec; }
 .check-icon--fail { color: #a84c3e; background: #f6e2df; }
 .check-status { color: var(--text-secondary); font-size: 10px; }
+.check-detail { color: var(--text-secondary); font-size: 10px; line-height: 1.5; }
+.agent-debug { margin-top: 10px; padding: 8px 10px; border: 1px dashed #b7c8bd; border-radius: 8px; color: #587064; font-size: 10px; line-height: 1.6; display: flex; flex-direction: column; }
 
 @media (max-width: 980px) {
   .planner-page { padding-right: 16px; padding-left: 16px; }

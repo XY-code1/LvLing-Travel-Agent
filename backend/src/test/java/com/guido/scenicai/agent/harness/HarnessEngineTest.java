@@ -4,6 +4,7 @@ import com.guido.scenicai.agent.context.TravelContext;
 import com.guido.scenicai.agent.intent.TravelIntent;
 import com.guido.scenicai.agent.planner.TravelTask;
 import com.guido.scenicai.domain.trip.TravelPlan;
+import com.guido.scenicai.domain.route.RouteResult;
 import com.guido.scenicai.integration.amap.AmapPoiProvider;
 import com.guido.scenicai.integration.amap.AmapRouteProvider;
 import com.guido.scenicai.tool.map.AMapRouteTool;
@@ -47,7 +48,8 @@ class HarnessEngineTest {
         when(poiProvider.search("灵隐寺", "杭州")).thenReturn(List.of(
                 new AmapPoiProvider.Poi("2", "灵隐寺", "杭州", lingyin)));
         when(routeProvider.walking(List.of(westLake, lingyin))).thenReturn(
-                new AmapRouteProvider.Route(6200, 4800, List.of(westLake, lingyin)));
+                new RouteResult(westLake, lingyin, 6200, 4800, "walking",
+                        List.of(westLake, lingyin), List.of(), "amap"));
         AMapRouteTool tool = new AMapRouteTool(poiProvider, routeProvider);
         ToolRequest request = new ToolRequest(
                 new TravelTask(1, TravelTask.Type.PLAN_ROUTE, "规划路线", true),
@@ -61,8 +63,46 @@ class HarnessEngineTest {
         verify(routeProvider).walking(List.of(westLake, lingyin));
     }
 
+    @Test
+    void amapRouteToolUsesCurrentLocationWithoutPoiLookup() {
+        AmapPoiProvider poiProvider = mock(AmapPoiProvider.class);
+        AmapRouteProvider routeProvider = mock(AmapRouteProvider.class);
+        AmapPoiProvider.Coordinate current = new AmapPoiProvider.Coordinate(120.12, 30.22);
+        AmapPoiProvider.Coordinate lingyin = new AmapPoiProvider.Coordinate(120.102, 30.240);
+        when(poiProvider.search("灵隐寺", "杭州")).thenReturn(List.of(
+                new AmapPoiProvider.Poi("2", "灵隐寺", "杭州", lingyin)));
+        when(routeProvider.walking(List.of(current, lingyin))).thenReturn(
+                new RouteResult(current, lingyin, 3200, 2400, "walking", List.of(current, lingyin), List.of(), "amap"));
+        AMapRouteTool tool = new AMapRouteTool(poiProvider, routeProvider);
+        TravelContext located = new TravelContext("杭州", null, 1, null, null,
+                List.of(), List.of(), null, current.longitude(), current.latitude());
+
+        ToolResult result = tool.execute(new ToolRequest(
+                new TravelTask(1, TravelTask.Type.PLAN_ROUTE, "规划路线", true), located,
+                intent("我当前位置", "灵隐寺", "walking")));
+
+        assertEquals(ToolResult.Status.SUCCESS, result.status());
+        verify(poiProvider, never()).search("我当前位置", "杭州");
+        verify(routeProvider).walking(List.of(current, lingyin));
+    }
+
+    @Test
+    void amapRouteToolRequiresCoordinatesForCurrentLocation() {
+        AmapPoiProvider poiProvider = mock(AmapPoiProvider.class);
+        AmapRouteProvider routeProvider = mock(AmapRouteProvider.class);
+        AMapRouteTool tool = new AMapRouteTool(poiProvider, routeProvider);
+
+        ToolResult result = tool.execute(new ToolRequest(
+                new TravelTask(1, TravelTask.Type.PLAN_ROUTE, "规划路线", true), context(),
+                intent("我的当前位置", "灵隐寺", "walking")));
+
+        assertEquals(ToolResult.Status.FAILED, result.status());
+        assertEquals("LOCATION_REQUIRED", result.errorCode());
+        verifyNoInteractions(poiProvider, routeProvider);
+    }
+
     private TravelContext context() {
-        return new TravelContext("杭州", null, 1, null, null, List.of(), List.of(), null);
+        return new TravelContext("杭州", null, 1, null, null, List.of(), List.of(), null, null, null);
     }
 
     private TravelIntent intent(String origin, String destination, String mode) {

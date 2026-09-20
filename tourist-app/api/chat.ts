@@ -15,19 +15,41 @@ export interface ChatStreamHandlers {
 }
 
 export function createSession(scenicId: number, avatarId?: number): Promise<SessionCreateVO> {
-  return post<SessionCreateVO>('/api/tourist/session/create', { scenicId, avatarId });
+  return postResult<SessionCreateVO>('/api/tourist/session/create', { scenicId, avatarId });
 }
 
 export function getSessionHistory(): Promise<SessionVO[]> {
-  return get<SessionVO[]>('/api/tourist/session/history');
+  return getResult<SessionVO[]>('/api/tourist/session/history');
 }
 
 export function getSessionMessages(sessionNo: string): Promise<MessageVO[]> {
-  return get<MessageVO[]>(`/api/tourist/session/${sessionNo}/messages`);
+  return getResult<MessageVO[]>(`/api/tourist/session/${sessionNo}/messages`);
 }
 
 export function askText(sessionNo: string, question: string, spotId?: number): Promise<ChatAnswerVO> {
-  return post<ChatAnswerVO>('/api/tourist/chat/text', { sessionNo, question, spotId });
+  return postResult<ChatAnswerVO>('/api/tourist/chat/text', { sessionNo, question, spotId });
+}
+
+type ApiResult<T> = { code: number; msg?: string; data: T };
+
+function unwrap<T>(response: T | ApiResult<T>): T {
+  if (response && typeof response === 'object' && 'code' in (response as object)
+    && 'data' in (response as object)) {
+    const wrapped = response as ApiResult<T>;
+    if (wrapped.code !== 200 && wrapped.code !== 0) {
+      throw new Error(wrapped.msg || `API_${wrapped.code}`);
+    }
+    return wrapped.data;
+  }
+  return response as T;
+}
+
+async function getResult<T>(url: string): Promise<T> {
+  return unwrap(await get<T | ApiResult<T>>(url));
+}
+
+async function postResult<T>(url: string, data?: unknown): Promise<T> {
+  return unwrap(await post<T | ApiResult<T>>(url, data));
 }
 
 export async function askTextStream(
@@ -41,6 +63,7 @@ export async function askTextStream(
     applyEvent(accumulator, event, handlers);
   });
   const answer = toChatAnswer(accumulator.events);
+  if (!answer.answer) throw new Error('灵灵没有收到回复，请稍后重试');
   handlers?.onDone?.(answer);
   return answer;
 }
@@ -59,6 +82,7 @@ export async function askVoiceStream(
     applyEvent(accumulator, event, handlers);
   });
   const answer = toChatAnswer(accumulator.events);
+  if (!answer.answer) throw new Error('灵灵没有收到回复，请稍后重试');
   handlers?.onDone?.(answer);
   return answer;
 }

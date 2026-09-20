@@ -19,16 +19,18 @@
     </view>
 
     <view class="header-actions">
-      <picker
-        v-if="cities.length"
-        class="city-picker"
-        :range="cities"
-        range-key="cityName"
-        @change="emit('city-change', $event)"
-      >
+      <view v-if="cityOptions.length" class="city-picker" @tap="cityMenuOpen = !cityMenuOpen">
         <text class="city-picker__label">{{ currentCity || '探索城市' }}</text>
         <text class="city-picker__chevron">⌄</text>
-      </picker>
+        <view v-if="cityMenuOpen" class="city-picker__menu" @tap.stop>
+          <view
+            v-for="(option, index) in cityOptions"
+            :key="`${option.cityName}-${index}`"
+            class="city-picker__option"
+            @tap="selectCity(option)"
+          >{{ option.cityName }}</view>
+        </view>
+      </view>
       <text v-else class="city-picker__label">{{ currentCity || '探索城市' }}</text>
 
       <view class="trip-link" role="link" @tap="go(APP_ROUTES.history)">
@@ -73,39 +75,62 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
-import { APP_ROUTES, navigateTo } from '../../router';
+import { getCityContext, resolveCityContext } from '../../api/scenic';
+import { autoLocateCurrentCity, initializeCityContext, locateCurrentCity } from '../../composables/useCityContext';
+import { APP_ROUTES, currentPrimaryRoute, navigateTo, PRIMARY_ROUTES } from '../../router';
+import { useTouristStore } from '../../stores';
+import type { CityVO } from '../../types';
 import { isLoggedIn } from '../../utils/auth';
 
-type City = { cityName: string };
-
-withDefaults(defineProps<{
-  active?: string;
-  currentCity?: string;
-  cities?: City[];
-}>(), {
-  active: 'home',
-  currentCity: '',
-  cities: () => []
-});
-
-const emit = defineEmits<{
-  (event: 'city-change', value: { detail: { value: number } }): void;
-}>();
-
+const store = useTouristStore();
 const open = ref(false);
+const cityMenuOpen = ref(false);
 const loggedIn = isLoggedIn();
+const currentCity = computed(() => store.currentCity?.cityName || '探索城市');
+const cityOptions = computed(() => {
+  const selected = store.currentCity;
+  const cityPool = [selected, ...store.recentCities].filter((city): city is CityVO => Boolean(city));
+  const unique = cityPool.filter((city, index) => cityPool.findIndex((item) => item.cityKey === city.cityKey
+    || item.cityCode === city.cityCode) === index);
+  return [
+    ...unique.map((city) => ({
+      cityName: city === selected ? `${city.cityName} ✓ 当前城市` : `${city.cityName} · 最近访问`,
+      city
+    })),
+    { cityName: '定位当前位置', action: 'locate' as const },
+    { cityName: '搜索更多城市…', action: 'discover' as const }
+  ];
+});
+const active = currentPrimaryRoute();
+const items = PRIMARY_ROUTES;
 
-const items = [
-  { key: 'home', label: '首页', url: APP_ROUTES.home },
-  { key: 'planner', label: 'AI旅行', url: APP_ROUTES.planner },
-  { key: 'cities', label: '城市探索', url: APP_ROUTES.cities },
-  { key: 'spot', label: '景点', url: APP_ROUTES.spot },
-  { key: 'route', label: '路线规划', url: APP_ROUTES.route },
-  { key: 'services', label: '服务查询', url: APP_ROUTES.services },
-  { key: 'inspiration', label: '旅行灵感', url: APP_ROUTES.inspiration }
-];
+watch(currentCity, (next) => console.info('[NavbarCity] updated=', next), { immediate: true });
+
+async function selectCity(option: (typeof cityOptions.value)[number]): Promise<void> {
+  cityMenuOpen.value = false;
+  if (option?.action === 'discover') {
+    go(APP_ROUTES.cities);
+    return;
+  }
+  if (option?.action === 'locate') {
+    try { await locateCurrentCity(); } catch { go(APP_ROUTES.cities); }
+    return;
+  }
+  const city = option?.city;
+  if (!city || city.cityKey === store.currentCity?.cityKey) return;
+  store.setCityContext(city.id ? await getCityContext(city.id) : await resolveCityContext(city.cityName, city.cityCode));
+}
+
+onMounted(async () => {
+  try {
+    await initializeCityContext();
+    await autoLocateCurrentCity();
+  } catch {
+    // 页面负责展示业务错误；Header 保持可导航。
+  }
+});
 
 function goHome(): void {
   open.value = false;
@@ -116,6 +141,10 @@ function go(url: string): void {
   open.value = false;
   if (url === APP_ROUTES.home || url.startsWith(`${APP_ROUTES.home}?`)) {
     uni.reLaunch({ url });
+    return;
+  }
+  if (PRIMARY_ROUTES.some((item) => item.url === url)) {
+    uni.redirectTo({ url });
     return;
   }
   navigateTo(url);
@@ -205,11 +234,33 @@ function go(url: string): void {
 }
 
 .city-picker {
+  position: relative;
   gap: 4px;
   color: var(--jade-700);
   font-size: 12px;
   cursor: pointer;
 }
+
+.city-picker__menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 30;
+  width: 210px;
+  padding: 8px;
+  border: 1px solid rgba(26, 82, 68, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 34px rgba(14, 58, 48, 0.16);
+}
+
+.city-picker__option {
+  padding: 10px 12px;
+  border-radius: 9px;
+  color: var(--jade-800);
+}
+
+.city-picker__option:hover { background: rgba(42, 111, 91, 0.08); }
 
 .city-picker__label {
   overflow: hidden;

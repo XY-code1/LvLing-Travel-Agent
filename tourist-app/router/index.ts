@@ -6,16 +6,38 @@ import { isLoggedIn } from '../utils/auth';
  */
 export const APP_ROUTES = {
   home: '/pages/index/index',
-  planner: '/pages/chat/index',
-  cities: '/pages/index/index?section=cities',
-  spot: '/pages/index/index?section=cities',
-  route: '/pages/route/index',
-  services: '/pages/chat/index?mode=services',
+  aiTravel: '/pages/ai-travel/index',
+  aiGuide: '/pages/chat/index',
+  cities: '/pages/cities/index',
+  spots: '/pages/spots/index',
+  planner: '/pages/route/index',
+  services: '/pages/services/index',
+  announcements: '/pages/announcements/index',
+  sos: '/pages/sos/index',
   inspiration: '/pages/inspiration/index',
   vision: '/pages/vision/index',
   profile: '/pages/profile/index',
   history: '/pages/history/index'
 } as const;
+
+export type PrimaryRouteKey = 'home' | 'aiGuide' | 'cities' | 'spots' | 'planner' | 'services' | 'announcements' | 'sos';
+
+export const PRIMARY_ROUTES: Array<{ key: PrimaryRouteKey; label: string; url: string }> = [
+  { key: 'home', label: '首页', url: APP_ROUTES.home },
+  { key: 'aiGuide', label: 'AI导览', url: APP_ROUTES.aiGuide },
+  { key: 'cities', label: '城市探索', url: APP_ROUTES.cities },
+  { key: 'spots', label: '景点', url: APP_ROUTES.spots },
+  { key: 'planner', label: '路线规划', url: APP_ROUTES.planner },
+  { key: 'services', label: '服务查询', url: APP_ROUTES.services },
+  { key: 'announcements', label: '公告', url: APP_ROUTES.announcements },
+  { key: 'sos', label: 'SOS求助', url: APP_ROUTES.sos }
+];
+
+export function currentPrimaryRoute(): PrimaryRouteKey | null {
+  const pages = getCurrentPages();
+  const route = pages[pages.length - 1]?.route || 'pages/index/index';
+  return PRIMARY_ROUTES.find((item) => item.url.split('?')[0].replace(/^\//, '') === route)?.key || null;
+}
 
 const protectedPages = new Set([
   '/pages/history/index',

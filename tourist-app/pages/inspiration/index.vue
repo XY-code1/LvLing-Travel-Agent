@@ -1,6 +1,6 @@
 <template>
   <view class="inspiration-page">
-    <AppHeader active="inspiration" />
+    <AppHeader />
 
     <PageContainer>
       <view class="inspiration-hero">

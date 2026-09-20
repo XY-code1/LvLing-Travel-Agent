@@ -277,3 +277,15 @@ corepack pnpm run build
 ```
 
 更多说明见 [项目文档索引](docs/README.md)。
+## 本次更新说明
+
+- 修复灵灵 AI 对话链路：统一解包后端 `Result.data`，避免会话创建成功但前端拿不到 `sessionNo`。
+- 登录用户的文字消息恢复使用 `/api/tourist/chat/text/stream` SSE 对话接口；未登录用户仍可使用公开的旅行规划接口。
+- 数字人头像加载失败不再阻断文字对话，空回复会显示明确错误。
+- 新增 Travel Agent、城市上下文、SOS、服务设施和路线工具相关模块及迁移脚本。
+
+## 本地启动端口说明
+
+默认后端端口是 `8080`。如果 Windows 的端口保留策略导致 `8080` 无法绑定，可改用 `8181`，并设置 `VITE_DEV_PROXY_TARGET=http://localhost:8181`。
+
+请通过环境变量提供数据库密码和 AI 密钥，不要将真实凭据写入仓库。

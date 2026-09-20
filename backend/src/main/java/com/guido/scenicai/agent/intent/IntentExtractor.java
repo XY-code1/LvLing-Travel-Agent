@@ -19,15 +19,17 @@ public class IntentExtractor {
     private static final Pattern DAYS = Pattern.compile("([0-9一二两三四五六七八九十]+)\\s*(?:天|日)");
     private static final Pattern BUDGET = Pattern.compile("预算\\s*(?:为|是)?\\s*[¥￥]?\\s*([0-9,]+)");
     private static final Pattern POIS = Pattern.compile("想去(.+?)(?:[。.!！]|$)");
-    private static final Pattern ROUTE = Pattern.compile("从(.+?)到(.+?)(?:的)?(?:步行|驾车|开车)?路线");
+    private static final Pattern ROUTE = Pattern.compile("从(.+?)(?:去|到)(.+?)(?=，|,|。|!|！|怎么走|$)");
+    private static final Pattern CURRENT_ROUTE = Pattern.compile("从(我?的?当前位置)去(.+?)(?:怎么走|[。.!！]|$)");
+    private static final Pattern WEATHER_CITY = Pattern.compile("([\\p{IsHan}]{2,8})(?:今天|明天|后天).*天气");
 
     public TravelIntent extract(TravelAgentRequest request, TravelContext context) {
         String message = request.getMessage().trim();
         String travelers = first(context.travelers(), detectTravelers(message));
         Set<String> constraints = new LinkedHashSet<>(context.constraints());
-        boolean mobilityConstraint = containsAny(message, "腿脚不太方便", "腿脚不便", "行动不便", "少走路");
+        boolean mobilityConstraint = containsAny(message, "腿脚不太方便", "腿脚不便", "行动不便", "少走路", "走路不方便", "走路不太方便");
         if (mobilityConstraint) constraints.add("行动不便");
-        if (containsAny(message, "不想太赶", "不要太赶", "轻松一点")) constraints.add("低强度行程");
+        if (containsAny(message, "不想太赶", "不要太赶", "不想太累", "轻松一点")) constraints.add("低强度行程");
 
         Set<String> preferences = new LinkedHashSet<>(context.preferences());
         addIfPresent(preferences, message, "历史文化", "历史", "文化");
@@ -42,7 +44,7 @@ public class IntentExtractor {
             requestedPois = List.of(route.origin(), route.destination());
         }
         return new TravelIntent(
-                first(context.city(), detectCity(message)),
+                first(detectCity(message), context.city()),
                 first(context.date(), detectDate(message)),
                 first(context.durationDays(), parseDays(message)),
                 first(context.budget(), parseBudget(message)),
@@ -58,6 +60,10 @@ public class IntentExtractor {
     }
 
     private String detectDate(String message) {
+        if (message.contains("今天")) return "今天";
+        if (message.contains("明天")) return "明天";
+        if (message.contains("后天")) return "后天";
+        if (message.contains("今天")) return "今天";
         if (message.contains("明天")) return "明天";
         if (message.contains("周末")) return "周末";
         if (message.contains("后天")) return "后天";
@@ -65,6 +71,13 @@ public class IntentExtractor {
     }
 
     private String detectCity(String message) {
+        for (String known : List.of("杭州", "西安", "北京", "上海", "南京", "苏州", "成都", "重庆", "广州", "深圳", "青岛", "无锡")) {
+            if (message.contains(known)) return known;
+        }
+        Matcher explicit = Pattern.compile("([\\p{IsHan}]{2,8})(?=(?:\\u4e24|\\u4e8c|\\u4e00|\\u4e09|\\u56db|\\u4e94|\\u516d|\\u4e03|\\u516b|\\u4e5d|\\u5341)\\u5929|\\u65c5\\u884c|\\u65c5\\u6e38)").matcher(message);
+        if (explicit.find()) return explicit.group(1);
+        String weatherCity = match(WEATHER_CITY, message);
+        if (weatherCity != null) return weatherCity;
         String city = match(CITY, message);
         if (city != null) return city;
         if (containsAny(message, "西湖", "灵隐寺", "河坊街")) return "杭州";
@@ -72,10 +85,25 @@ public class IntentExtractor {
     }
 
     private Integer parseDays(String message) {
+        Matcher modern = Pattern.compile("(\\d{1,2}|[\\p{IsHan}]{1,3})\\s*(?:\\u5929|\\u65e5)").matcher(message);
+        if (modern.find()) {
+            String value = modern.group(1);
+            if (value.chars().allMatch(Character::isDigit)) return Integer.valueOf(value);
+            Integer parsed = modernChineseNumber(value);
+            if (parsed != null) return parsed;
+        }
         String value = match(DAYS, message);
         if (value == null) return null;
         if (value.chars().allMatch(Character::isDigit)) return Integer.valueOf(value);
         return chineseNumber(value);
+    }
+
+    private Integer modernChineseNumber(String value) {
+        if (value.equals("一")) return 1; if (value.equals("两") || value.equals("二")) return 2;
+        if (value.equals("三")) return 3; if (value.equals("四")) return 4; if (value.equals("五")) return 5;
+        if (value.equals("六")) return 6; if (value.equals("七")) return 7; if (value.equals("八")) return 8;
+        if (value.equals("九")) return 9; if (value.equals("十")) return 10;
+        return null;
     }
 
     private Integer chineseNumber(String value) {
@@ -107,6 +135,8 @@ public class IntentExtractor {
     }
 
     private BigDecimal parseBudget(String message) {
+        Matcher modern = Pattern.compile("\\u9884\\u7b97\\s*(?:\\u4e3a|\\u662f)?\\s*[￥¥]?\\s*([0-9,]+)").matcher(message);
+        if (modern.find()) return new BigDecimal(modern.group(1).replace(",", ""));
         String value = match(BUDGET, message);
         return value == null ? null : new BigDecimal(value.replace(",", ""));
     }
@@ -125,6 +155,9 @@ public class IntentExtractor {
     }
 
     private List<String> requestedPois(String message) {
+        List<String> known = List.of("西湖", "灵隐寺", "兵马俑", "古城墙", "大雁塔", "钟楼", "鼓楼").stream()
+                .filter(message::contains).toList();
+        if (!known.isEmpty()) return known;
         String segment = match(POIS, message);
         if (segment == null) return List.of();
         List<String> result = new ArrayList<>();
@@ -136,10 +169,13 @@ public class IntentExtractor {
     }
 
     private RouteIntent routeIntent(String message) {
+        Matcher current = CURRENT_ROUTE.matcher(message);
+        if (current.find()) return new RouteIntent(current.group(1).trim(), current.group(2).trim(), "walking");
         Matcher matcher = ROUTE.matcher(message);
         if (!matcher.find()) return null;
         String mode = containsAny(message, "驾车", "开车") ? "driving" : "walking";
-        return new RouteIntent(matcher.group(1).trim(), matcher.group(2).trim(), mode);
+        String destination = matcher.group(2).trim().replaceFirst("(?:的)?(?:步行|驾车|开车)?路线$", "");
+        return new RouteIntent(matcher.group(1).trim(), destination, mode);
     }
 
     private void addIfPresent(Set<String> target, String message, String value, String... keywords) {

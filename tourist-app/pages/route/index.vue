@@ -1,222 +1,45 @@
 <template>
-  <view class="page">
-    <view class="hero">
-      <text class="hero__eyebrow">个性化路线</text>
-      <text class="hero__title">按兴趣推荐游览顺序</text>
-      <text class="hero__desc">不填兴趣时，系统会使用个人中心里的兴趣标签。</text>
-    </view>
-
-    <view class="card form-stack">
-      <input v-model="interest" class="input" placeholder="兴趣，如历史、自然、亲子、摄影" />
-      <button class="button" :loading="loading" @tap="loadRoutes">生成路线</button>
-    </view>
-
-    <view class="card locate-card">
-      <view class="row">
-        <view>
-          <text class="section-title">当前位置辅助</text>
-          <text class="muted">{{ locateText }}</text>
-        </view>
-        <button class="button button--ghost" :loading="locating" @tap="locateByGps">GPS</button>
-      </view>
-      <view v-if="nearbySpots.length" class="spot-chain">
-        <text v-for="spot in nearbySpots" :key="spot.spotId" class="tag" @tap="goSpot(spot.spotId)">
-          {{ spot.name }} · {{ formatDistance(spot.distanceMeters) }}
-        </text>
-      </view>
-      <view v-else class="fallback-actions">
-        <button class="button button--ghost" :loading="photoLocating" @tap="locateByPhoto">拍照定位</button>
-        <button class="button button--ghost" @tap="showManualSpots">手动选景点</button>
-      </view>
-    </view>
-
-    <view v-if="manualSpots.length" class="card locate-card">
-      <text class="section-title">手动选择景点</text>
-      <view class="spot-chain">
-        <text v-for="spot in manualSpots" :key="spot.spotId" class="tag" @tap="goSpot(spot.spotId)">
-          {{ spot.name }}
-        </text>
-      </view>
-    </view>
-
-    <view v-if="routes.length === 0 && !loading" class="empty">暂无路线推荐</view>
-    <view v-for="route in routes" :key="route.routeId" class="card route-card">
-      <view class="row">
-        <text class="route-card__title">{{ route.name }}</text>
-        <text class="tag">{{ route.estimateMinutes || 0 }} 分钟</text>
-      </view>
-      <text class="muted">{{ route.recommendReason }}</text>
-      <view class="spot-chain">
-        <text v-for="spot in route.spots" :key="spot.spotId" class="tag" @tap="goSpot(spot.spotId)">
-          {{ spot.sortOrder }}. {{ spot.name }}
-        </text>
-      </view>
-    </view>
-  </view>
+  <view class="route-page" :style="backgroundStyle"><AppHeader /><view class="route-shell"><view class="route-grid">
+    <section class="engine glass"><text class="eyebrow">AI ROUTE ENGINE</text><text class="engine-title">把有限时间，交给懂你的路线</text><text class="engine-copy">组合时间、人群、体力、兴趣，旅灵与无障碍需求动态生成。</text>
+      <view class="field"><text class="label">游览时长 · {{ durationHours }} 小时</text><slider :value="durationHours" min="1" max="8" step="1" activeColor="#6ed7b8" @change="changeDuration" /></view>
+      <view class="field"><text class="label">游客类型</text><view class="chips"><text v-for="item in travelerOptions" :key="item" class="chip" :class="{ selected: traveler === item }" @tap="traveler = item">{{ item }}</text></view></view>
+      <view class="field"><text class="label">体力情况</text><view class="chips"><text v-for="item in physicalOptions" :key="item" class="chip" :class="{ selected: physical === item }" @tap="physical = item">{{ item }}</text></view></view>
+      <view class="field"><text class="label">兴趣偏好</text><view class="chips"><text v-for="item in interestOptions" :key="item" class="chip" :class="{ selected: interests.includes(item) }" @tap="toggleInterest(item)">{{ item }}</text></view></view>
+      <view class="field"><text class="label">出发位置</text><view class="start-row"><text>{{ startLocation || '尚未定位' }}</text><button class="small-button" :loading="locating" @tap="locate">定位</button></view></view>
+      <view class="field"><text class="label">特殊需求</text><view class="switch-list"><view v-for="item in specialOptions" :key="item.key" class="switch-row" @tap="toggleSpecial(item.key)"><text>{{ item.label }}</text><view class="switch" :class="{ on: specials[item.key] }"><view /></view></view></view></view>
+      <button class="generate" :loading="planning" @tap="generate">⚡ 生成我的 AI 路线</button>
+    </section>
+    <section class="journey glass"><view class="journey-head"><view><text class="eyebrow">PERSONALIZED JOURNEY</text><text class="journey-title">让 AI 导览员灵灵为您量身定制路线</text></view><text v-if="result" class="provider-badge">REAL_PROVIDER</text></view>
+      <view v-if="planning" class="agent-running"><text class="running-title">灵灵正在规划您的路线……</text><view v-for="step in traceSteps" :key="step.label" class="agent-step"><text :class="step.status">{{ step.status === 'DONE' ? '✓' : step.status === 'RUNNING' ? '●' : '○' }}</text><text>{{ step.label }}</text></view></view>
+      <view v-else-if="result" class="result-view"><view class="tabs"><text :class="{ active: tab === 'timeline' }" @tap="tab = 'timeline'">路线详情</text><text :class="{ active: tab === 'map' }" @tap="tab = 'map'">地图模式</text></view><view v-if="tab === 'timeline'" class="timeline"><view v-for="(item, index) in activities" :key="`${item.poi.name}-${index}`" class="timeline-item"><text class="time">{{ item.time }}</text><view class="node"><view class="dot">{{ index + 1 }}</view><view v-if="index < activities.length - 1" class="line" /></view><view><text class="activity-name">{{ item.poi.name }}</text><text class="activity-meta">建议游览 {{ item.duration || 60 }} 分钟 · {{ item.transport || '步行' }} · {{ item.estimatedCost || 0 }}m</text><text class="activity-reason">{{ item.reason }}</text></view></view></view><view v-else class="map-wrap"><AmapPlannerMap :activities="activities" :city-name="cityName" :city-center="cityCenter" :route="routeData" /></view><view class="trace-summary">{{ resultMessage }}</view></view>
+      <view v-else class="journey-empty"><view class="empty-ring">✦</view><text class="empty-title">先告诉我，你想怎样旅行</text><text class="empty-copy">选择时长、人群与体力偏好，路线引擎将结合已有城市上下文、天气、景点、开放状态与地理路网，计算可验证的游览方案。</text><view class="data-sources"><text v-for="item in dataSources" :key="item">{{ item }}</text></view></view>
+    </section>
+    <section class="lingling"><view class="lingling-glow" /><DigitalHuman2D :state="planning ? 'THINKING' : 'IDLE'" /><view class="lingling-caption"><text class="lingling-name">● 灵灵</text><text>您的专属旅行数字员工</text><text class="lingling-hint">{{ result ? '我已根据您的需求调整景点顺序。' : '点击人物，听我介绍如何开始规划。' }}</text></view></section>
+  </view></view></view>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-
-import { getCurrentAvatar } from '../../api/avatar';
-import { recommendRoute } from '../../api/route';
-import { createSession } from '../../api/chat';
-import { getHotScenic, getNearbySpots } from '../../api/scenic';
-import { recognizeSpot } from '../../api/vision';
-import { navigateTo } from '../../router';
+import { computed, onMounted, reactive, ref } from 'vue';
+import AppHeader from '../../components/layout/AppHeader.vue';
+import DigitalHuman2D from '../../components/DigitalHuman2D.vue';
+import AmapPlannerMap from '../../components/planner/AmapPlannerMap.vue';
+import { initializeCityContext } from '../../composables/useCityContext';
 import { useTouristStore } from '../../stores';
-import type { HotSpotVO, NearbySpotVO, RouteRecommendVO } from '../../types';
-import { requireLogin } from '../../utils/auth';
-
-const store = useTouristStore();
-const interest = ref('');
-const loading = ref(false);
-const locating = ref(false);
-const photoLocating = ref(false);
-const locateText = ref('先尝试 GPS，失败时可拍照定位；仍不可用时手动选景点。');
-const routes = ref<RouteRecommendVO[]>([]);
-const nearbySpots = ref<NearbySpotVO[]>([]);
-const manualSpots = ref<HotSpotVO[]>([]);
-
-onMounted(() => {
-  if (requireLogin()) {
-    void loadRoutes();
-    void locateByGps();
-  }
-});
-
-async function loadRoutes(): Promise<void> {
-  loading.value = true;
-  try {
-    routes.value = await recommendRoute(store.currentScenicId, interest.value || undefined);
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : '路线加载失败';
-    uni.showToast({ title: message, icon: 'none' });
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function locateByGps(): Promise<void> {
-  locating.value = true;
-  manualSpots.value = [];
-  uni.getLocation({
-    type: 'gcj02',
-    success: (response: { longitude: number; latitude: number }) => {
-      void loadNearby(response.longitude, response.latitude);
-    },
-    fail: () => {
-      locateText.value = 'GPS 不可用，请使用拍照定位；如果图片识别也不可用，可以手动选景点。';
-      nearbySpots.value = [];
-      locating.value = false;
-    }
-  });
-}
-
-async function loadNearby(longitude: number, latitude: number): Promise<void> {
-  try {
-    nearbySpots.value = await getNearbySpots(store.currentScenicId, longitude, latitude);
-    locateText.value = nearbySpots.value.length
-      ? '已按当前位置推荐附近景点。'
-      : '当前位置附近暂无可讲解景点，可拍照定位或手动选择。';
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : '附近景点加载失败';
-    locateText.value = `${message}，可拍照定位或手动选择。`;
-    nearbySpots.value = [];
-  } finally {
-    locating.value = false;
-  }
-}
-
-async function locateByPhoto(): Promise<void> {
-  photoLocating.value = true;
-  try {
-    const imagePath = await chooseLocationImage();
-    const sessionNo = await ensureSession();
-    const result = await recognizeSpot(sessionNo, imagePath);
-    if (result.recognizedSpot) {
-      const spotName = result.recognizedSpot.spotName || result.recognizedSpot.name;
-      locateText.value = `照片识别为 ${spotName}，已进入对应景点。`;
-      goSpot(result.recognizedSpot.spotId);
-      return;
-    }
-    locateText.value = '图片未识别出明确景点，请手动选择景点。';
-    await showManualSpots();
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : '拍照定位失败';
-    locateText.value = `${message}，请手动选择景点。`;
-    await showManualSpots();
-  } finally {
-    photoLocating.value = false;
-  }
-}
-
-function chooseLocationImage(): Promise<string> {
-  return new Promise((resolve, reject) => {
-    uni.chooseImage({
-      count: 1,
-      sourceType: ['camera', 'album'],
-      success: (response) => resolve(response.tempFilePaths[0]),
-      fail: () => reject(new Error('未选择图片'))
-    });
-  });
-}
-
-async function ensureSession(): Promise<string> {
-  if (!store.selectedAvatar) {
-    store.setSelectedAvatar(await getCurrentAvatar());
-  }
-  const avatarId = store.selectedAvatar?.id;
-  if (store.currentSessionNo && (!avatarId || store.currentSessionAvatarId === avatarId)) {
-    return store.currentSessionNo;
-  }
-  const session = await createSession(store.currentScenicId, avatarId);
-  const selected = session.selectedAvatar || session.defaultAvatar || store.selectedAvatar;
-  store.setSession(session.sessionNo, session.scenicId, selected?.id || null);
-  store.setSelectedAvatar(selected || null);
-  return session.sessionNo;
-}
-
-async function showManualSpots(): Promise<void> {
-  const home = await getHotScenic();
-  manualSpots.value = home.hotSpots;
-  locateText.value = home.hotSpots.length ? '请选择当前位置附近的景点继续讲解。' : '暂无可手动选择的热门景点。';
-}
-
-function formatDistance(distanceMeters: number): string {
-  if (distanceMeters >= 1000) {
-    return `${(distanceMeters / 1000).toFixed(1)}km`;
-  }
-  return `${distanceMeters}m`;
-}
-
-function goSpot(id: number): void {
-  navigateTo(`/pages/spot/index?id=${id}`);
-}
+import { runTravelAgent, type AgentPlanResponse, type AgentRouteData } from '../../services/travelAgentService';
+import type { TravelActivity } from '../../types';
+const store = useTouristStore(); const cityName = computed(() => store.experienceCityContext?.city?.cityName || '当前城市');
+const cityCenter = computed(() => { const city = store.experienceCityContext?.city; return city ? { longitude: city.longitude, latitude: city.latitude } : null; }); const backgroundStyle = computed(() => { const image = store.experienceCityContext?.city?.coverImage; return image ? { '--city-cover': `url(${image})` } : {}; });
+const durationHours = ref(4); const traveler = ref('普通游客'); const physical = ref('普通'); const interests = ref<string[]>(['自然风光']); const startLocation = ref(''); const locating = ref(false); const planning = ref(false); const tab = ref<'timeline' | 'map'>('timeline'); const result = ref<AgentPlanResponse | null>(null); const routeData = ref<AgentRouteData | null>(null); const activities = ref<TravelActivity[]>([]); const resultMessage = ref(''); const specials = reactive<Record<string, boolean>>({ crowded: false, accessible: false, dining: true, walking: false, rain: false });
+const travelerOptions = ['普通游客', '亲子家庭', '情侣', '朋友同行', '独自旅行', '老人同行']; const physicalOptions = ['轻松', '普通', '深度']; const interestOptions = ['自然风光', '历史文化', '人文建筑', '摄影', '美食', '博物馆', '亲子', '夜游']; const dataSources = ['天气', '景点', '路线', '开放时间', 'POI', '当前位置']; const specialOptions = [{ key: 'crowded', label: '避开拥堵' }, { key: 'accessible', label: '无障碍优先' }, { key: 'dining', label: '安排餐饮休息' }, { key: 'walking', label: '减少步行' }, { key: 'rain', label: '雨天友好' }];
+const traceSteps = computed(() => { const names: Record<string, string> = { 'city.context': '获取当前城市', 'amap.weather': '查询天气', 'amap.poi': '查询景点', 'poi.opening-hours': '获取景点开放状态', 'amap.route': '计算路线', 'plan.validator': '检查游览约束' }; return ['理解旅行需求', ...(result.value?.executionTrace || []).map(trace => ({ label: names[trace.toolName || ''] || trace.toolName || '执行工具', status: trace.status === 'SUCCESS' ? 'DONE' : trace.status === 'FAILED' ? 'ERROR' : 'RUNNING' }))]; });
+function changeDuration(event: { detail: { value: number } }): void { durationHours.value = Number(event.detail.value); } function toggleInterest(item: string): void { interests.value = interests.value.includes(item) ? interests.value.filter(value => value !== item) : [...interests.value, item]; } function toggleSpecial(key: string): void { specials[key] = !specials[key]; }
+function locate(): void { locating.value = true; uni.getLocation({ type: 'gcj02', success: ({ longitude, latitude }) => { startLocation.value = `当前位置 ${longitude.toFixed(4)}, ${latitude.toFixed(4)}`; }, fail: () => { startLocation.value = '定位失败，可由灵灵按城市规划'; }, complete: () => { locating.value = false; } }); }
+async function generate(): Promise<void> { planning.value = true; result.value = null; activities.value = []; tab.value = 'timeline'; const need = `${durationHours.value}小时${traveler.value}${physical.value}体力，偏好${interests.value.join('、')}${specials.accessible || specials.walking ? '，减少步行' : ''}${startLocation.value ? `，从${startLocation.value}出发` : ''}`; try { console.info('[RouteUI]', { buttonClicked: true }); console.info('[RouteRequest]', { destination: cityName.value, days: 1, pace: physical.value, preferences: interests.value, transport: specials.walking ? 'walking' : 'default', startPoint: startLocation.value || null }); const response = await runTravelAgent(`请为我规划${cityName.value}的${need}路线`, cityName.value); result.value = response; routeData.value = (response.executionResults.find(item => item.toolName === 'amap.route' && item.status === 'SUCCESS')?.data || null) as AgentRouteData | null; activities.value = buildActivities(response, routeData.value); console.info('[RouteResponse]', { status: 'success', pois: activities.value.map(item => item.poi.name), route: Boolean(routeData.value), itinerary: response.itinerary?.length || 0 }); resultMessage.value = routeData.value ? `灵灵已完成 ${routeData.value.distanceMeters} 米真实路线计算，并通过当前 Harness 校验。` : '工具已执行，但当前没有返回可展示的真实路线。'; } catch (error) { console.error('[RouteResponse]', { status: 'error', error }); resultMessage.value = error instanceof Error ? error.message : '路线规划失败'; } finally { planning.value = false; } }
+function buildActivities(response: AgentPlanResponse, route: AgentRouteData | null): TravelActivity[] { const raw: any = response.executionResults.find(item => item.toolName === 'amap.poi' && item.status === 'SUCCESS')?.data; const values: any[] = Array.isArray(raw) ? raw.flatMap(item => item.candidates?.slice(0, 1).map((poi: any) => ({ name: poi.name, coordinates: poi.coordinates })) || []) : []; const points = route ? [{ name: route.origin, coordinates: route.originCoordinates }, { name: route.destination, coordinates: route.destinationCoordinates }] : values; return points.map((item, index) => ({ time: `${String(9 + index * 2).padStart(2, '0')}:00`, poi: { id: null, name: item.name }, coordinates: item.coordinates, duration: index ? 60 : 90, transport: index ? '步行' : '出发', estimatedCost: route?.distanceMeters || null, reason: index ? '结合真实 POI 与路线结果顺序推荐' : '根据您的时间与体力偏好安排起点' })); }
+onMounted(() => { void initializeCityContext().catch(() => undefined); });
 </script>
 
 <style scoped lang="scss">
-.form-stack,
-.route-card,
-.locate-card {
-  display: grid;
-  gap: 20rpx;
-}
-
-.route-card__title {
-  font-size: 32rpx;
-  font-weight: 700;
-}
-
-.spot-chain {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.fallback-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16rpx;
-}
+.route-page{min-height:100vh;color:#f3fff8;background:#0b302d}.route-shell{position:relative;min-height:calc(100vh - 84px);overflow:hidden;background:linear-gradient(90deg,rgba(7,39,36,.91),rgba(7,53,47,.72),rgba(7,39,36,.72)),var(--city-cover),linear-gradient(145deg,#164b43,#092c2b);background-size:cover;background-position:center}.route-grid{position:relative;z-index:1;display:grid;grid-template-columns:minmax(300px,.9fr) minmax(390px,1.1fr) minmax(230px,.68fr);gap:18px;max-width:1360px;min-height:calc(100vh - 84px);margin:auto;padding:clamp(24px,2.5vw,38px);box-sizing:border-box;align-items:start}.glass{background:rgba(9,45,41,.72);border:1px solid rgba(208,255,235,.22);border-radius:24px;box-shadow:0 24px 70px rgba(0,0,0,.22);backdrop-filter:blur(20px)}.engine,.journey{padding:clamp(20px,2vw,28px)}.eyebrow{display:block;color:#79e1c2;font-size:11px;font-weight:800;letter-spacing:.2em}.engine-title,.journey-title{display:block;margin-top:10px;color:#f3fff8;font-family:Georgia,'Songti SC',serif;font-size:clamp(25px,2.2vw,34px);font-weight:800;line-height:1.2}.engine-copy{display:block;margin-top:10px;color:rgba(228,249,238,.68);font-size:13px;line-height:1.7}.field{display:grid;gap:7px;margin-top:17px}.label{color:#bde9d8;font-size:12px;font-weight:800}.chips{display:flex;flex-wrap:wrap;gap:7px}.chip{padding:7px 9px;color:rgba(230,249,239,.74);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:999px;font-size:11px}.chip.selected{color:#063b31;background:#79dfbf;border-color:#79dfbf;font-weight:800}.start-row{display:flex;justify-content:space-between;gap:10px;padding:9px 11px;color:#e9fff4;background:rgba(255,255,255,.08);border-radius:11px}.small-button{margin:0;padding:0 12px;color:#073b32;background:#72d9bc;border:0;border-radius:8px;font-size:11px}.switch-list{display:grid;gap:9px}.switch-row{display:flex;justify-content:space-between;color:rgba(233,255,244,.78);font-size:12px}.switch{width:34px;height:19px;padding:2px;background:rgba(255,255,255,.18);border-radius:99px}.switch view{width:15px;height:15px;background:#d8ebe3;border-radius:50%}.switch.on{background:#55c9a9}.switch.on view{transform:translateX(15px);background:#fff}.generate{width:100%;margin-top:22px;padding:13px;color:#073b32;background:linear-gradient(110deg,#78e1c1,#4bbac1);border:0;border-radius:13px;font-size:14px;font-weight:800}.journey{min-height:540px}.journey-head{display:flex;justify-content:space-between;gap:12px}.journey-title{font-size:clamp(24px,2.1vw,32px)}.provider-badge{height:fit-content;padding:7px 9px;color:#83e6c7;background:rgba(89,207,175,.12);border-radius:99px;font-size:10px}.journey-empty{display:grid;justify-items:center;padding:64px 16px 18px;text-align:center}.empty-ring{display:grid;place-items:center;width:56px;height:56px;color:#78e1c1;border:1px solid rgba(120,225,193,.5);border-radius:50%;font-size:25px}.empty-title{display:block;margin-top:20px;font-size:19px;font-weight:800}.empty-copy{max-width:420px;margin-top:10px;color:rgba(230,249,239,.67);font-size:13px;line-height:1.75}.data-sources{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:20px}.data-sources text{padding:7px 9px;color:#a9dfce;background:rgba(255,255,255,.08);border-radius:9px;font-size:11px}.agent-running{padding:48px 8px}.running-title{display:block;margin-bottom:24px;color:#7ee3c4;font-size:17px;font-weight:800}.agent-step{display:flex;gap:12px;padding:10px 0;color:rgba(234,255,245,.74);font-size:13px;border-bottom:1px solid rgba(255,255,255,.08)}.agent-step text:first-child{width:15px;color:#79e1c2}.tabs{display:flex;gap:22px;margin:25px 0 20px;border-bottom:1px solid rgba(255,255,255,.15)}.tabs text{padding-bottom:10px;color:rgba(236,255,246,.55);font-size:13px}.tabs text.active{color:#8be5c7;border-bottom:2px solid #78dfbe}.timeline{max-height:440px;overflow:auto}.timeline-item{display:grid;grid-template-columns:48px 24px 1fr;gap:10px;min-height:90px}.time{padding-top:2px;color:#8bdcbe;font-size:12px}.dot{display:grid;place-items:center;width:22px;height:22px;color:#063b31;background:#79dfbf;border-radius:50%;font-size:11px;font-weight:800}.line{height:76px;width:2px;margin-left:10px;background:rgba(121,223,191,.35)}.activity-name{display:block;font-size:16px;font-weight:800}.activity-meta,.activity-reason{display:block;margin-top:6px;color:rgba(226,249,238,.65);font-size:11px;line-height:1.5}.activity-reason{color:#9bdac6}.trace-summary{margin-top:18px;padding:11px;color:#b9ead8;background:rgba(87,208,174,.1);border-radius:10px;font-size:11px}.map-wrap{height:400px}.lingling{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;align-self:center;min-height:470px}.lingling-glow{position:absolute;width:210px;height:210px;background:radial-gradient(circle,rgba(92,220,185,.36),transparent 68%)}.lingling :deep(.digital-human-2d){position:relative;width:min(100%,280px);height:350px}.lingling-caption{display:grid;gap:5px;position:relative;text-align:center;color:rgba(229,250,240,.68);font-size:12px}.lingling-name{color:#8de4c7;font-size:16px;font-weight:800}.lingling-hint{max-width:210px;color:rgba(229,250,240,.55);line-height:1.6}@media(max-width:1050px){.route-grid{grid-template-columns:1fr 1.15fr;max-width:960px}.lingling{grid-column:1/-1;min-height:240px;flex-direction:row;gap:22px}.lingling :deep(.digital-human-2d){width:200px;height:230px}}@media(max-width:700px){.route-grid{display:flex;flex-direction:column;align-items:stretch;padding:18px 14px 42px}.journey{order:3;min-height:400px}.lingling{order:2;min-height:220px}.engine{order:4}.lingling :deep(.digital-human-2d){width:175px;height:205px}.engine-title{font-size:29px}.journey-title{font-size:26px}.map-wrap{height:320px}}
+.route-page,.route-shell{width:100%;max-width:100%;box-sizing:border-box}.route-shell{overflow:visible}.route-grid{width:min(1360px,calc(100vw - 48px));max-width:none;padding:36px 0;grid-template-columns:minmax(0,.9fr) minmax(0,1.08fr) minmax(0,.82fr);box-sizing:border-box}.route-grid>*{min-width:0;max-width:100%;box-sizing:border-box}.engine,.journey,.lingling{min-width:0}.lingling{min-height:520px}.lingling :deep(.digital-human-2d){width:min(100%,320px);height:400px}@media(max-width:1050px){.route-grid{width:min(960px,calc(100vw - 48px));padding:28px 0;grid-template-columns:minmax(0,1fr) minmax(0,1.12fr)}.lingling{min-height:280px}.lingling :deep(.digital-human-2d){width:230px;height:270px}}@media(max-width:700px){.route-grid{display:flex;width:calc(100vw - 28px);padding:18px 0 42px}.lingling{min-height:240px}.lingling :deep(.digital-human-2d){width:190px;height:225px}}
 </style>

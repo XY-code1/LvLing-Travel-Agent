@@ -244,6 +244,14 @@ export interface TravelPlan {
   days: TravelDay[];
   steps: PlannerStep[];
   routeId: number | null;
+  route: {
+    origin: string;
+    destination: string;
+    distanceMeters: number;
+    durationSeconds: number;
+    polyline: Array<{ longitude: number; latitude: number }>;
+    provider: string;
+  } | null;
 }
 
 export interface HotSpotVO {
@@ -263,19 +271,75 @@ export interface TouristHomeHotVO {
 }
 
 export interface CityVO {
-  id: number; cityCode: string; cityName: string; province: string | null;
+  id: number | null; cityCode: string; cityName: string; province: string | null;
   country: string | null; description: string | null; slogan: string | null;
   coverImage: string | null; heroImages: string | null; themeConfig: string | null;
   longitude: number | null; latitude: number | null; weatherCode?: string | null;
   status: number; sortOrder: number;
+  cityKey?: string | null; adcode?: string | null;
+  source?: 'local' | 'discovered' | 'fallback';
+}
+
+export interface CityPoiVO {
+  id: string; name: string; address: string | null; type: string | null;
+  distanceMeters: number | null; longitude: number | null; latitude: number | null;
+  images?: string | null; source: 'local' | 'amap' | 'demo';
+}
+
+export interface CityServiceVO {
+  id: string; name: string; category: string | null; address: string | null;
+  longitude: number | null; latitude: number | null; source: 'local' | 'amap' | 'demo';
+}
+
+export interface CityWeatherVO {
+  weather: string; temperature: string; windDirection: string; windPower: string;
+  humidity: string; reportTime: string; source: 'amap';
 }
 
 export interface CityContextVO {
   city: CityVO | null;
   scenicAreas: Array<{ id: number; name: string }>;
-  pois: Array<{ id: number; name: string; images?: string | null }>;
-  services: unknown[]; announcements: unknown[]; knowledgeSources: string[];
+  pois: CityPoiVO[];
+  services: CityServiceVO[]; announcements: unknown[]; knowledgeSources: string[];
   discovered: boolean; fallback: boolean; message: string | null;
+  source?: 'local' | 'discovered' | 'fallback';
+  cityKey?: string | null; adcode?: string | null; weather?: CityWeatherVO | null;
+}
+
+export interface CurrentLocationState {
+  coords: { latitude: number; longitude: number; accuracy: number | null } | null;
+  cityName: string | null;
+  province: string | null;
+  district: string | null;
+  status: 'idle' | 'locating' | 'resolving' | 'success' | 'partial' | 'denied' | 'failed';
+  source: 'browser' | 'none';
+}
+
+export interface TravelTaskContext {
+  taskId: string;
+  rawRequest: string;
+  currentCity: CityVO | null;
+  destinationCity: CityVO | null;
+  destinationCityContext: CityContextVO | null;
+  date: string | null;
+  duration: number | null;
+  travelers: string | number | null;
+  mobility: string | null;
+  budget: number | null;
+  interests: string[];
+  mustVisit: string[];
+  selectedPois: CityPoiVO[];
+  route: TravelPlan['route'];
+  weather: CityWeatherVO | AgentWeatherSnapshot | null;
+  services: CityServiceVO[];
+  validation: TravelPlanChecks | null;
+  executionTrace: Array<{ step: string; status: string; tool: string | null; message: string | null }>;
+  updatedAt: string;
+}
+
+export interface AgentWeatherSnapshot {
+  city: string; weather: string; temperature: string; humidity: string;
+  windDirection: string; windPower: string; reportTime: string;
 }
 
 export interface TouristSpotDetailVO {
@@ -301,6 +365,13 @@ export interface FeedbackSubmitDTO {
   sessionNo?: string;
   score?: number;
   content?: string;
+}
+
+export interface SosRequestVO {
+  id: number; requestNo: string; userId: number | null; cityId: number | null; scenicId: number | null;
+  helpType: string; urgency: string; locationText: string; longitude: number | null; latitude: number | null;
+  phone: string; description: string; status: 'PENDING' | 'ACCEPTED' | 'PROCESSING' | 'RESOLVED' | 'CLOSED';
+  createdAt: string | null; updatedAt: string | null;
 }
 
 export interface TouristFeedbackVO {

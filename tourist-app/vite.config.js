@@ -39,22 +39,35 @@ if (hbuilderxPlugins) {
 
 module.exports = defineConfig(({ mode }) => {
   const env = loadEnv(mode, projectRoot, 'VITE_');
+  const devProxyTarget = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080';
   return {
   root: projectRoot,
   define: {
     __AMAP_JS_KEY__: JSON.stringify(env.VITE_AMAP_JS_KEY || ''),
-    __AMAP_SECURITY_CODE__: JSON.stringify(env.VITE_AMAP_SECURITY_CODE || '')
+    __AMAP_SECURITY_CODE__: JSON.stringify(env.VITE_AMAP_SECURITY_CODE || ''),
+    __API_BASE_URL__: JSON.stringify(env.VITE_API_BASE_URL || ''),
+    __DEFAULT_CITY_NAME__: JSON.stringify(env.VITE_DEFAULT_CITY || '杭州'),
+    __DEFAULT_CITY_CODE__: JSON.stringify(env.VITE_DEFAULT_CITY_CODE || '330100')
   },
   server: {
-    port: 5175,
+    port: 5176,
     host: '0.0.0.0',
     proxy: {
+      '/api': {
+        target: devProxyTarget,
+        changeOrigin: true,
+        bypass(req) {
+          // Keep UniApp source modules under /api/*.ts in Vite; only API
+          // requests should be forwarded to the backend.
+          if (/\/api\/[^?]+\.(?:ts|js|vue)(?:\?.*)?$/.test(req.url || '')) return req.url;
+        }
+      },
       '/api/tourist': {
-        target: 'http://localhost:8080',
+        target: devProxyTarget,
         changeOrigin: true
       },
       '/files': {
-        target: 'http://localhost:8080',
+        target: devProxyTarget,
         changeOrigin: true
       }
     }

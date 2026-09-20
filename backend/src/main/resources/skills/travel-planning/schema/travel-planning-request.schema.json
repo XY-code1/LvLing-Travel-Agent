@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TravelPlanningRequest",
+  "type": "object",
+  "required": ["city", "duration", "travelers", "budget", "interests", "mustVisit", "mobility", "preferences"],
+  "properties": {
+    "city": { "type": ["string", "null"] },
+    "date": { "type": ["string", "null"] },
+    "duration": { "type": ["integer", "null"], "minimum": 1 },
+    "travelers": { "type": ["string", "null"] },
+    "budget": { "type": ["number", "null"], "minimum": 0 },
+    "interests": { "type": "array", "items": { "type": "string" } },
+    "mustVisit": { "type": "array", "items": { "type": "string" } },
+    "mobility": { "type": ["string", "null"] },
+    "preferences": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -104,3 +104,12 @@ Desktop.ini
 # 测试覆盖报告
 coverage/
 .nyc_output/
+
+# Local package stores and diagnostics
+.pnpm-store/
+**/.pnpm-store/
+_index*.html
+probe_*.py
+startup-error.txt
+backend/startup-error.txt
+backend/codex-backend.*.log

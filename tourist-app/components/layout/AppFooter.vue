@@ -33,9 +33,9 @@ import PageContainer from './PageContainer.vue';
 
 const year = computed(() => new Date().getFullYear());
 const links = [
-  { label: 'AI旅行', url: APP_ROUTES.planner },
+  { label: 'AI导览', url: APP_ROUTES.aiGuide },
   { label: '城市探索', url: APP_ROUTES.cities },
-  { label: '景点服务', url: APP_ROUTES.spot }
+  { label: '景点服务', url: APP_ROUTES.spots }
 ];
 
 function go(url: string): void {

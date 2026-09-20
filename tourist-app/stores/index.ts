@@ -1,10 +1,16 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
-import type { AvatarConfigVO, CityContextVO, CityVO, TouristInfoVO, TouristProfileVO } from '../types';
+import type { AvatarConfigVO, CityContextVO, CityVO, CurrentLocationState, TouristInfoVO, TouristProfileVO, TravelTaskContext } from '../types';
 import { clearAuth, getStoredUser, getToken, setStoredUser, setToken } from '../utils/auth';
 
+export type LocationStatus = 'idle' | 'locating' | 'resolving' | 'success'
+  | 'permission-denied' | 'unavailable' | 'timeout' | 'backend-error';
+export type CitySelectionSource = 'location' | 'manual' | 'fallback' | 'restored';
+
 export const useTouristStore = defineStore('tourist', () => {
+  const persistedCityContext = readPersistedCityContext();
+  const persistedSelectionSource = readCitySelectionSource();
   const token = ref(getToken());
   const touristInfo = ref<TouristInfoVO | null>(getStoredUser());
   const profile = ref<TouristProfileVO | null>(null);
@@ -13,10 +19,20 @@ export const useTouristStore = defineStore('tourist', () => {
   const avatarOptions = ref<AvatarConfigVO[]>([]);
   const currentSessionNo = ref('');
   const currentSessionAvatarId = ref<number | null>(null);
-  const currentScenicId = ref(1);
-  const currentCityId = ref<number | null>(Number(uni.getStorageSync('guido_city_id')) || null);
-  const currentCity = ref<CityVO | null>(null);
-  const cityContext = ref<CityContextVO | null>(null);
+  const currentScenicId = ref(0);
+  const currentCityId = ref<number | null>(persistedCityContext?.city?.id
+    ?? (Number(uni.getStorageSync('guido_city_id')) || null));
+  const currentCity = ref<CityVO | null>(persistedCityContext?.city || null);
+  const cityContext = ref<CityContextVO | null>(persistedCityContext);
+  const recentCities = ref<CityVO[]>(readRecentCities());
+  const citySelectionSource = ref<CitySelectionSource>(persistedSelectionSource || (persistedCityContext ? 'restored' : 'fallback'));
+  const locationError = ref('');
+  const locationStatus = ref<LocationStatus>('idle');
+  const currentLocation = ref<CurrentLocationState>({ coords: null, cityName: null, province: null, district: null, status: 'idle', source: 'none' });
+  const featuredCityContext = ref<CityContextVO | null>(null);
+  const travelTaskContext = ref<TravelTaskContext | null>(readTravelTaskContext());
+  const experienceCityContext = computed(() => travelTaskContext.value?.destinationCityContext
+    || cityContext.value || featuredCityContext.value);
 
   function setLogin(nextToken: string, user: TouristInfoVO): void {
     token.value = nextToken;
@@ -34,11 +50,62 @@ export const useTouristStore = defineStore('tourist', () => {
     currentScenicId.value = scenicId;
     currentSessionAvatarId.value = avatarId ?? null;
   }
-  function setCityContext(context: CityContextVO): void {
+  function setCityContext(context: CityContextVO, selectionSource: CitySelectionSource = 'manual'): void {
+    if (!context?.city?.cityName || !(context.cityKey || context.city.cityKey || context.adcode || context.city.adcode)) {
+      throw new Error('城市上下文无效');
+    }
+    const previous = cityContext.value;
+    context.source ||= context.fallback ? 'fallback' : context.discovered ? 'discovered' : 'local';
     cityContext.value = context; currentCity.value = context.city;
+    citySelectionSource.value = selectionSource;
     currentCityId.value = context.city?.id ?? null;
+    uni.setStorageSync('guido_city_context', JSON.stringify(context));
+    uni.setStorageSync('guido_city_selection_source', selectionSource);
+    if (selectionSource === 'location') uni.setStorageSync('guido_location_resolved_at', Date.now());
     if (currentCityId.value) uni.setStorageSync('guido_city_id', currentCityId.value);
-    if (context.scenicAreas.length) currentScenicId.value = context.scenicAreas[0].id;
+    else uni.removeStorageSync('guido_city_id');
+    currentScenicId.value = context.scenicAreas.length ? context.scenicAreas[0].id : 0;
+    if (previous?.cityKey && previous.cityKey !== context.cityKey) clearSession();
+    if (context.city) {
+      recentCities.value = [context.city, ...recentCities.value.filter((city) => city.cityKey !== context.city?.cityKey
+        && city.cityCode !== context.city?.cityCode)].slice(0, 5);
+      uni.setStorageSync('guido_recent_cities', JSON.stringify(recentCities.value));
+    }
+    console.info('[CityContext]', { previous, next: context, selectionSource });
+  }
+
+  function setLocationError(message: string): void { locationError.value = message; }
+  function setLocationStatus(status: LocationStatus): void { locationStatus.value = status; }
+  function setCurrentLocation(value: Partial<CurrentLocationState>): void { currentLocation.value = { ...currentLocation.value, ...value }; }
+  function setFeaturedCityContext(context: CityContextVO): void { featuredCityContext.value = context; }
+  function startTravelTask(rawRequest: string): TravelTaskContext {
+    const task: TravelTaskContext = {
+      taskId: `task-${Date.now()}`,
+      rawRequest,
+      currentCity: currentCity.value,
+      destinationCity: null,
+      destinationCityContext: null,
+      date: null,
+      duration: null,
+      travelers: null,
+      mobility: null,
+      budget: null,
+      interests: [],
+      mustVisit: [],
+      selectedPois: [],
+      route: null,
+      weather: null,
+      services: [],
+      validation: null,
+      executionTrace: [],
+      updatedAt: new Date().toISOString()
+    };
+    setTravelTaskContext(task);
+    return task;
+  }
+  function setTravelTaskContext(task: TravelTaskContext): void {
+    travelTaskContext.value = task;
+    uni.setStorageSync('guido_travel_task_context', JSON.stringify(task));
   }
 
   function setAvatarOptions(options: AvatarConfigVO[]): void {
@@ -78,7 +145,10 @@ export const useTouristStore = defineStore('tourist', () => {
     currentSessionNo,
     currentSessionAvatarId,
     currentScenicId,
-    currentCityId, currentCity, cityContext, setCityContext,
+    currentCityId, currentCity, cityContext, featuredCityContext, experienceCityContext,
+    recentCities, locationError, locationStatus, currentLocation, citySelectionSource, travelTaskContext,
+    setCityContext, setFeaturedCityContext, setLocationError, setLocationStatus, setCurrentLocation,
+    startTravelTask, setTravelTaskContext,
     setLogin,
     setProfile,
     setSession,
@@ -89,3 +159,44 @@ export const useTouristStore = defineStore('tourist', () => {
     logoutLocal
   };
 });
+
+function readPersistedCityContext(): CityContextVO | null {
+  const value = uni.getStorageSync('guido_city_context');
+  if (!value) return null;
+  try {
+    const context = typeof value === 'string' ? JSON.parse(value) : value;
+    return context?.city?.cityName ? context as CityContextVO : null;
+  } catch {
+    uni.removeStorageSync('guido_city_context');
+    return null;
+  }
+}
+
+function readCitySelectionSource(): CitySelectionSource | null {
+  const value = uni.getStorageSync('guido_city_selection_source');
+  return value === 'location' || value === 'manual' || value === 'fallback' ? value : null;
+}
+
+function readRecentCities(): CityVO[] {
+  const value = uni.getStorageSync('guido_recent_cities');
+  if (!value) return [];
+  try {
+    const cities = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(cities) ? cities.filter((city) => city?.cityName).slice(0, 5) : [];
+  } catch {
+    uni.removeStorageSync('guido_recent_cities');
+    return [];
+  }
+}
+
+function readTravelTaskContext(): TravelTaskContext | null {
+  const value = uni.getStorageSync('guido_travel_task_context');
+  if (!value) return null;
+  try {
+    const task = typeof value === 'string' ? JSON.parse(value) : value;
+    return task?.taskId && task?.rawRequest ? task as TravelTaskContext : null;
+  } catch {
+    uni.removeStorageSync('guido_travel_task_context');
+    return null;
+  }
+}

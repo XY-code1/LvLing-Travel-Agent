@@ -1,0 +1,12 @@
+{
+  "message": "明天带父母去杭州玩一天，父亲走路不方便，预算1000元，想去西湖和灵隐寺。",
+  "expected": {
+    "city": "杭州",
+    "duration": 1,
+    "travelers": "父母",
+    "budget": 1000,
+    "mobility": "LOW",
+    "mustVisit": ["西湖", "灵隐寺"]
+  },
+  "note": "天气、POI、路线和预算事实必须来自旅灵 ToolResult。"
+}

@@ -1,6 +1,6 @@
 <template>
   <view class="home-page">
-    <AppHeader active="home" :current-city="cityName" :cities="cities" @city-change="changeCity" />
+    <AppHeader />
 
     <!-- ══ Hero 区 ══ -->
     <view class="home-hero" :class="{ 'home-hero--switching': switching }">
@@ -9,8 +9,12 @@
 
       <view class="home-hero__inner">
         <text class="hero__eyebrow">AI TRAVEL EMPLOYEE</text>
-        <text class="hero__title">想去哪座城市？</text>
-        <text class="hero__title hero__title--accent">让灵灵替你规划</text>
+        <text class="hero__context">{{ locationModeLabel }}</text>
+        <view v-if="store.locationError" class="hero__location-error" @tap="retryLocation">
+          <text>{{ store.locationError }}</text><text class="hero__location-retry">重新定位</text>
+        </view>
+        <text class="hero__title">一步入{{ cityName }}</text>
+        <text class="hero__title hero__title--accent">一程有灵灵</text>
         <text class="hero__slogan">你的 AI 旅行数字员工</text>
         <text class="hero__desc">告诉我城市、时间、预算和同行人，从景点筛选到路线调整，我帮你安排好。</text>
 
@@ -27,12 +31,12 @@
       </view>
 
       <view class="hero-guide">
-        <view class="guide-bubble">你好，我是旅灵。<text>我可以帮你找景点、规划路线。</text></view>
+        <view class="guide-bubble">你好，我是灵灵。<text>今天想在{{ cityName }}怎么玩？</text></view>
         <DigitalHuman2D />
       </view>
 
       <view class="hero-meta">
-        <view><text class="hero-meta__label">今日天气</text><text class="hero-meta__value">{{ store.currentCity?.weatherCode || '城市天气待接入' }}</text></view>
+        <view><text class="hero-meta__label">今日天气</text><text class="hero-meta__value">{{ cityContext?.weather ? `${cityContext.weather.weather} ${cityContext.weather.temperature}℃` : '城市天气待接入' }}</text></view>
         <view><text class="hero-meta__label">城市公告</text><text class="hero-meta__value">{{ cityContext?.announcements.length ? `${cityContext.announcements.length} 条待查看` : '暂无新公告' }}</text></view>
         <view><text class="hero-meta__label">导览状态</text><text class="hero-meta__value">{{ cityContext?.fallback ? '正在探索' : '本地资料已同步' }}</text></view>
       </view>
@@ -83,24 +87,24 @@
         </view>
         <view class="city-scroll">
           <view
-            v-for="city in cities.slice(0, 6)"
-            :key="city.id"
+            v-for="city in cityOptions.slice(0, 6)"
+            :key="city.cityKey || city.cityCode"
             class="city-card"
-            @tap="changeCity({ detail: { value: cities.findIndex((item) => item.id === city.id) } })"
+            @tap="changeCity(city)"
           >
-            <image :src="city.coverImage || '/static/images/home-hero-scenic.webp'" mode="aspectFill" />
+            <image :src="city.coverImage || genericCityImage" mode="aspectFill" />
             <view class="city-card__shade" />
             <view class="city-card__copy">
               <text>{{ city.cityName }}</text>
               <text>{{ city.slogan || city.description || '山水 · 人文 · 慢游' }}</text>
             </view>
-            <text v-if="city.id === store.currentCityId" class="city-card__badge">当前城市</text>
+            <text v-if="city.cityKey === store.currentCity?.cityKey" class="city-card__badge">当前城市</text>
           </view>
         </view>
       </view>
 
       <!-- 示例行程 -->
-      <view class="itinerary-section">
+      <view v-if="itineraryStops.length" class="itinerary-section">
         <view class="section-heading">
           <view>
             <text class="section-kicker">03 · SAMPLE JOURNEY</text>
@@ -115,14 +119,12 @@
               <text class="itinerary-city">山水与人文之间</text>
             </view>
             <view class="timeline">
-              <view class="timeline__item"><text class="timeline__time">09:00</text><text class="timeline__text">灵隐寺</text></view>
-              <view class="timeline__item"><text class="timeline__time">12:30</text><text class="timeline__text">西湖边午餐</text></view>
-              <view class="timeline__item"><text class="timeline__time">15:00</text><text class="timeline__text">湖畔慢行</text></view>
+              <view v-for="(stop, index) in itineraryStops" :key="stop" class="timeline__item"><text class="timeline__time">{{ itineraryTimes[index] }}</text><text class="timeline__text">{{ stop }}</text></view>
             </view>
           </view>
           <view class="itinerary-map">
             <text class="itinerary-map__label">旅灵为你整理</text>
-            <text class="map-route">灵隐寺　—　西湖　—　河坊街</text>
+            <text class="map-route">{{ itineraryStops.join('　—　') }}</text>
             <view class="itinerary-map__foot">
               <text class="itinerary-map__price">¥1268</text>
               <text class="itinerary-map__meta">步行 4.2 km · 预计 8 小时</text>
@@ -139,11 +141,11 @@
           <text class="replan-copy">当一场雨改变下午的安排，灵灵会保留旅程的心情，只替你换一条更舒服的路。</text>
         </view>
         <view class="replan-flow">
-          <view class="replan-node"><text class="replan-node__label">原行程</text><text class="replan-node__value">西湖漫步</text></view>
+          <view class="replan-node"><text class="replan-node__label">原行程</text><text class="replan-node__value">{{ cityName }}漫步</text></view>
           <text class="replan-arrow">→</text>
           <view class="replan-node weather-change"><text class="replan-node__label">天气变化</text><text class="replan-node__value">14:00 · 暴雨</text></view>
           <text class="replan-arrow">→</text>
-          <view class="replan-node replan-node--new"><text class="replan-node__label">新行程</text><text class="replan-node__value">茶馆与室内展览</text></view>
+          <view class="replan-node replan-node--new"><text class="replan-node__label">新行程</text><text class="replan-node__value">{{ cityName }}室内探索</text></view>
         </view>
       </view>
 
@@ -153,48 +155,62 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
-
 import { getCurrentAvatar } from '../../api/avatar';
 import { createSession } from '../../api/chat';
-import { getCityContext, listCities } from '../../api/scenic';
+import { getCityContext, resolveCityContext } from '../../api/scenic';
 import DigitalHuman2D from '../../components/DigitalHuman2D.vue';
 import AppHeader from '../../components/layout/AppHeader.vue';
+import { initializeHomeCity, locateCurrentCity } from '../../composables/useCityContext';
 import { navigateTo } from '../../router';
 import { useTouristStore } from '../../stores';
 import type { AvatarConfigVO, CityVO } from '../../types';
 import { isLoggedIn } from '../../utils/auth';
 
 const store    = useTouristStore();
-const cities   = ref<CityVO[]>([]);
 const switching = ref(false);
 const taskText  = ref('');
 const avatar    = ref<AvatarConfigVO | null>(null);
-const cityName  = computed(() => store.currentCity?.cityName || '探索城市');
-const heroImage = computed(() => store.currentCity?.coverImage || '/static/images/home-hero-scenic.webp');
-const cityContext = computed(() => store.cityContext);
-const requestedSection = ref('');
+const currentCityName = computed(() => store.currentCity?.cityName || '未定位');
+const featuredCityName = computed(() => store.featuredCityContext?.city?.cityName || '杭州');
+const cityName  = computed(() => store.currentCity?.cityName || featuredCityName.value);
+const genericCityImage = '/static/images/auth-guide-visual.webp';
+const heroImage = computed(() => store.currentCity?.coverImage || genericCityImage);
+const cityContext = computed(() => store.currentCity ? store.cityContext : store.featuredCityContext);
+const locationModeLabel = computed(() => {
+  const current = store.currentLocation.cityName || (store.currentLocation.coords ? '当前位置已获取' : '未获取位置');
+  return `当前位置：${current} · 旅行目的地：${currentCityName.value || featuredCityName.value}`;
+});
+const cityOptions = computed(() => [store.currentCity, ...store.recentCities]
+  .filter((city, index, values): city is CityVO => Boolean(city)
+    && values.findIndex((item) => item?.cityKey === city?.cityKey || item?.cityCode === city?.cityCode) === index));
+const itineraryStops = computed(() => {
+  const names = (store.cityContext?.pois || []).slice(0, 3).map((poi) => poi.name);
+  if (names.length) return names;
+  return store.currentCity?.adcode === '330100' ? ['西湖', '灵隐寺', '河坊街'] : [];
+});
+const itineraryTimes = ['09:00', '12:30', '15:00'];
 
 async function loadHome(): Promise<void> {
   try {
     // 游客首页不应请求受保护的头像接口；DigitalHuman2D 自带本地 PNG 降级资源。
     // 否则 request.ts 的 401 处理会把正常游客入口重定向到登录页。
     if (isLoggedIn() && !avatar.value) { try { avatar.value = await getCurrentAvatar(); } catch { /* 数字人未配置时保留降级界面 */ } }
-    cities.value = await listCities();
-    const selected = cities.value.find((item) => item.id === store.currentCityId) || cities.value[0];
-    if (selected) {
-      const context = await getCityContext(selected.id); store.setCityContext(context);
-    }
+    await initializeHomeCity();
   } catch (error: unknown) {
     uni.showToast({ title: error instanceof Error ? error.message : '首页加载失败', icon: 'none' });
   }
 }
-async function changeCity(event: { detail: { value: number } }): Promise<void> {
-  const city = cities.value[event.detail.value];
-  if (!city || city.id === store.currentCityId) return;
+async function retryLocation(): Promise<void> {
+  try { await locateCurrentCity(); }
+  catch (error: unknown) {
+    uni.showToast({ title: error instanceof Error ? error.message : '定位失败', icon: 'none' });
+  }
+}
+async function changeCity(city: CityVO): Promise<void> {
+  if (!city || city.cityKey === store.currentCity?.cityKey) return;
   switching.value = true;
   try {
-    store.setCityContext(await getCityContext(city.id));
+    store.setCityContext(city.id ? await getCityContext(city.id) : await resolveCityContext(city.cityName, city.cityCode));
   } finally {
     setTimeout(() => { switching.value = false; }, 560);
   }
@@ -222,22 +238,19 @@ async function startChat(): Promise<void> {
   }
 }
 
-function submitTask(): void { const text = taskText.value.trim(); if (text) navigateTo(`/pages/chat/index?question=${encodeURIComponent(text)}`); else startChat(); }
+function submitTask(): void {
+  const text = taskText.value.trim();
+  if (!text) { void startChat(); return; }
+  store.startTravelTask(text);
+  navigateTo(`/pages/chat/index?question=${encodeURIComponent(text)}`);
+}
 function scrollCities(): void { uni.pageScrollTo({ selector: '#hot-cities', duration: 260 }); }
 
 function goRoute(): void              { navigateTo('/pages/route/index'); }
 function goVision(): void             { navigateTo('/pages/vision/index'); }
 
-onLoad((query) => {
-  requestedSection.value = typeof query.section === 'string' ? query.section : '';
-});
-
 onMounted(() => {
-  void loadHome().finally(() => {
-    if (requestedSection.value) {
-      setTimeout(() => uni.pageScrollTo({ selector: '#hot-cities', duration: 260 }), 120);
-    }
-  });
+  void loadHome();
 });
 </script>
 
@@ -306,6 +319,28 @@ onMounted(() => {
   color: rgba(255, 255, 255, 0.72);
   margin-bottom: 16rpx;
 }
+
+.hero__context {
+  display: block;
+  margin-bottom: 8rpx;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.hero__location-error {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  width: fit-content;
+  margin-bottom: 12rpx;
+  padding: 8rpx 14rpx;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999rpx;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 20rpx;
+  background: rgba(4, 49, 40, 0.4);
+}
+
+.hero__location-retry { color: #f0d59a; font-weight: 600; }
 
 .hero__title {
   display: block;

@@ -13,14 +13,23 @@ public class TaskPlanner {
         List<TravelTask> tasks = new ArrayList<>();
         add(tasks, TravelTask.Type.RESOLVE_CITY, "确认旅行城市与城市上下文", true);
         if (context.date() != null) add(tasks, TravelTask.Type.CHECK_WEATHER, "检查旅行日期天气", false);
+        if (weatherOnly(intent, context)) return List.copyOf(tasks);
         add(tasks, TravelTask.Type.SEARCH_POI, "查询符合偏好与必去要求的景点", true);
         if (!intent.requestedPois().isEmpty()) {
             add(tasks, TravelTask.Type.CHECK_POI_OPENING, "检查必去景点开放信息", true);
         }
         add(tasks, TravelTask.Type.PLAN_ROUTE, "规划景点顺序与交通路线", true);
+        add(tasks, TravelTask.Type.QUERY_SERVICES, "查询目的地必要服务设施", false);
         if (context.budget() != null) add(tasks, TravelTask.Type.CHECK_BUDGET, "核算行程预算", true);
+        add(tasks, TravelTask.Type.QUERY_RAG, "检索景点知识与旅行注意事项", false);
         add(tasks, TravelTask.Type.VALIDATE_PLAN, "检查计划约束与完整性", true);
         return List.copyOf(tasks);
+    }
+
+    private boolean weatherOnly(TravelIntent intent, TravelContext context) {
+        return context.date() != null && context.durationDays() == null && context.budget() == null
+                && context.travelers() == null && intent.requestedPois().isEmpty()
+                && intent.routeOrigin() == null && intent.preferences().isEmpty();
     }
 
     private void add(List<TravelTask> tasks, TravelTask.Type type, String description, boolean required) {

@@ -11,5 +11,7 @@ public record TravelContext(
         String travelers,
         List<String> preferences,
         List<String> constraints,
-        String conversationId) {
+        String conversationId,
+        Double longitude,
+        Double latitude) {
 }

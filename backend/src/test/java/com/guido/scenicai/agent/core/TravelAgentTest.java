@@ -11,6 +11,7 @@ import com.guido.scenicai.agent.planner.TaskPlanner;
 import com.guido.scenicai.agent.planner.TravelTask;
 import com.guido.scenicai.integration.amap.AmapPoiProvider;
 import com.guido.scenicai.integration.amap.AmapRouteProvider;
+import com.guido.scenicai.domain.route.RouteResult;
 import com.guido.scenicai.tool.map.AMapRouteTool;
 import org.junit.jupiter.api.Test;
 
@@ -72,6 +73,36 @@ class TravelAgentTest {
     }
 
     @Test
+    void extractsRouteEmbeddedInTripRequest() {
+        TravelAgentResponse result = plan("明天在杭州玩一天，从西湖到灵隐寺，步行优先。");
+
+        assertEquals("西湖", result.intent().routeOrigin());
+        assertEquals("灵隐寺", result.intent().routeDestination());
+        assertEquals("walking", result.intent().routeMode());
+        assertTask(result, TravelTask.Type.CHECK_WEATHER);
+        assertTask(result, TravelTask.Type.PLAN_ROUTE);
+    }
+
+    @Test
+    void requiresLocationForCurrentPositionRoute() {
+        TravelAgentResponse result = plan("从我的当前位置去灵隐寺怎么走");
+
+        assertEquals("我的当前位置", result.intent().routeOrigin());
+        assertEquals("灵隐寺", result.intent().routeDestination());
+        assertTask(result, TravelTask.Type.PLAN_ROUTE);
+    }
+
+    @Test
+    void extractsWeatherOnlyIntentWithoutRouteTask() {
+        TravelAgentResponse result = plan("杭州今天天气怎么样？");
+
+        assertEquals("杭州", result.intent().city());
+        assertEquals("今天", result.intent().date());
+        assertTask(result, TravelTask.Type.CHECK_WEATHER);
+        assertFalse(result.tasks().stream().anyMatch(task -> task.type() == TravelTask.Type.PLAN_ROUTE));
+    }
+
+    @Test
     void executesAgentHarnessToolProviderChain() {
         AmapPoiProvider poiProvider = mock(AmapPoiProvider.class);
         AmapRouteProvider routeProvider = mock(AmapRouteProvider.class);
@@ -82,7 +113,8 @@ class TravelAgentTest {
         when(poiProvider.search("灵隐寺", "杭州")).thenReturn(java.util.List.of(
                 new AmapPoiProvider.Poi("2", "灵隐寺", "杭州", lingyin)));
         when(routeProvider.walking(java.util.List.of(westLake, lingyin))).thenReturn(
-                new AmapRouteProvider.Route(6200, 4800, java.util.List.of(westLake, lingyin)));
+                new RouteResult(westLake, lingyin, 6200, 4800, "walking",
+                        java.util.List.of(westLake, lingyin), java.util.List.of(), "amap"));
         TravelAgent routeAgent = new TravelAgent(new TravelContextBuilder(), new IntentExtractor(),
                 new TaskPlanner(), new HarnessEngine(new ToolRegistry(java.util.List.of(
                 new AMapRouteTool(poiProvider, routeProvider)))));

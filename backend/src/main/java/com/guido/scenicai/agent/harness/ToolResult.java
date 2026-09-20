@@ -8,7 +8,7 @@ public record ToolResult(
         String errorCode,
         String message) {
 
-    public enum Status { SUCCESS, FAILED, SKIPPED }
+    public enum Status { SUCCESS, DEGRADED, FAILED, SKIPPED }
 
     public static ToolResult success(ToolRequest request, String toolName, Object data) {
         return new ToolResult(request.task().order(), toolName, Status.SUCCESS, data, null, null);
@@ -16,6 +16,14 @@ public record ToolResult(
 
     public static ToolResult failed(ToolRequest request, String toolName, String errorCode, String message) {
         return new ToolResult(request.task().order(), toolName, Status.FAILED, null, errorCode, message);
+    }
+
+    public static ToolResult failed(ToolRequest request, String toolName, Object data, String errorCode, String message) {
+        return new ToolResult(request.task().order(), toolName, Status.FAILED, data, errorCode, message);
+    }
+
+    public static ToolResult degraded(ToolRequest request, String toolName, Object data, String errorCode, String message) {
+        return new ToolResult(request.task().order(), toolName, Status.DEGRADED, data, errorCode, message);
     }
 
     public static ToolResult skipped(int taskId, String errorCode, String message) {

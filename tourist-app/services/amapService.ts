@@ -1,7 +1,10 @@
 import { get, post } from '../utils/request';
 
 export interface AmapCoordinate { longitude: number; latitude: number; }
-export interface AmapPoi { id: string; name: string; address: string; coordinates: AmapCoordinate; }
+export interface AmapPoi {
+  id: string; name: string; address: string; type?: string; distanceMeters?: number | null;
+  coordinates: AmapCoordinate;
+}
 export interface AmapGeocode { formattedAddress: string; coordinates: AmapCoordinate; }
 export interface AmapRoute { distanceMeters: number; durationSeconds: number; polyline: AmapCoordinate[]; }
 export interface AmapWeather {
