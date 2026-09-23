@@ -1,14 +1,15 @@
-# 景区导览服务 AI 数字人
+# 旅灵 AI Travel Agent
 
-当前产品品牌为“旅灵”，定位为可扩展多城市的 AI 旅行定制数字人员工。Phase 3 已加入 City Context 基础架构；在已有数据库初始化后执行 `database/migration/phase3_city_context.sql`，再启动 backend、admin-web 和 tourist-app。
+旅灵是基于 Guido 二次开发的多城市 AI 旅行数字员工。当前版本已经形成 `Travel Agent + Harness + Tool Calling + Provider + CityContext + RAG + Digital Human` 的增量架构，并提供 UniApp Web/H5 游客端、Vue 3 管理后台和 Spring Boot 后端。
 
-面向景区游客与运营人员的一体化智能导览系统。项目将文本问答、语音交互、拍照识景、本地 RAG、个性化路线推荐和游客行为分析整合到同一业务中，并提供 UniApp 游客端、Vue 3 管理后台与 Spring Boot 后端服务。
+系统支持自然语言旅行规划、动态城市发现、真实 POI/天气/路线查询、结构化行程、地图展示、本地 RAG、语音服务与数字人交互。生产环境采用同源 HTTPS：浏览器访问静态 H5，`/api` 由反向代理转发至后端，第三方服务密钥仅保存在服务端环境变量或加密配置中。
 
 | 项目信息 | 内容 |
 | --- | --- |
 | 项目角色 | 项目负责人 / 全栈与 AI 应用开发 |
 | 主要职责 | 系统设计、数据库建模、后端开发、AI 服务集成、游客端与管理后台实现 |
-| GitHub | [github.com/youxiandechilun/Guido](https://github.com/youxiandechilun/Guido) |
+| 当前仓库 | [github.com/XY-code1/LvLing-Travel-Agent](https://github.com/XY-code1/LvLing-Travel-Agent) |
+| 上游项目 | [github.com/youxiandechilun/Guido](https://github.com/youxiandechilun/Guido) |
 
 ## 项目价值
 
@@ -30,6 +31,9 @@
 | 模块 | 主要能力 |
 | --- | --- |
 | 多模态导览 | 文本问答、语音问答、拍照识景、上下文会话与资料引用 |
+| Travel Agent | 意图提取、任务规划、Harness 执行、Tool Registry、结果校验与 ExecutionTrace |
+| 动态城市 | 城市名或浏览器定位解析 CityContext，支持本地城市与高德动态发现 |
+| 高德能力 | 地理编码、POI、天气、步行路线、真实坐标与地图 Polyline |
 | 本地 RAG | 文档管理、重叠分片、向量化、Top-K 检索、关键词兜底与检索测试 |
 | 流式响应 | SSE 增量文本、识别结果、引用来源、情绪、音频地址和阶段耗时 |
 | 个性化路线 | 兴趣标签匹配、路线加权排序、预计时长、推荐理由与景点顺序 |
@@ -37,6 +41,8 @@
 | AI 服务管理 | LLM、VLM、Embedding、ASR、TTS 配置、能力测试与默认服务切换 |
 | 运营分析 | 热门问题、热门景点、情绪分布、知识库命中率、耗时趋势与 Word 报告 |
 | 后台管理 | 景区、景点、路线、知识库、游客、反馈、会话、日志和数据大屏 |
+
+> LLM、ASR、TTS、高德 Web Service 等外部能力需要在部署环境或管理后台配置对应 Provider。缺少配置时系统会明确返回不可用状态，不以 Mock 数据冒充真实结果。
 
 ## 智能交互链路
 
@@ -166,7 +172,12 @@ sequenceDiagram
 | `POST` | `/api/tourist/chat/voice` | 语音问答 |
 | `POST` | `/api/tourist/chat/voice/stream` | 语音问答 SSE |
 | `POST` | `/api/tourist/vision/recognize` | 拍照识别景点并生成讲解 |
+| `POST` | `/api/tourist/agent/plan` | 自然语言 Travel Agent 规划 |
+| `POST` | `/api/tourist/agent/travel-planning` | 结构化旅行规划入口 |
+| `GET` | `/api/tourist/context/resolve` | 按城市名称解析动态 CityContext |
+| `GET` | `/api/tourist/context/resolve-location` | 按经纬度逆地理编码并建立 CityContext |
 | `GET` | `/api/tourist/route/recommend` | 个性化路线推荐 |
+| `GET` | `/api/health` | Backend 与数据库健康检查 |
 | `POST` | `/api/admin/knowledge/upload` | 上传知识资料 |
 | `POST` | `/api/admin/knowledge/sync/{id}` | 文档切片与向量化 |
 | `POST` | `/api/admin/knowledge/test` | 测试知识检索 |
@@ -174,7 +185,7 @@ sequenceDiagram
 | `POST` | `/api/admin/sentiment/generate` | 生成游客感受度报告 |
 | `POST` | `/api/admin/sentiment/generate-docx` | 导出 Word 报告 |
 
-完整参数与返回结构可在后端启动后访问 `http://localhost:8080/doc.html`。
+开发环境可在后端启动后访问 Knife4j；生产环境建议关闭接口文档并通过同源 HTTPS 访问 `/api/**`。
 
 ## 项目结构
 
@@ -188,20 +199,30 @@ LvLing-Travel-Agent/
 │       │   ├── core/         TravelAgent 总入口
 │       │   ├── harness/      HarnessEngine、ToolRegistry 与 ExecutionTrace
 │       │   ├── intent/       旅行意图结构化提取
-│       │   └── planner/      TravelTask 生成与任务规划
+│       │   ├── planner/      TravelTask 生成与任务规划
+│       │   └── skill/        可复用旅行规划 Skill
 │       ├── tool/
-│       │   └── map/          AgentTool 的高德路线实现 AMapRouteTool
+│       │   ├── map/          高德路线 Tool
+│       │   ├── city/         城市上下文 Tool
+│       │   ├── poi/          POI 查询 Tool
+│       │   ├── weather/      天气 Tool
+│       │   ├── budget/       预算 Tool
+│       │   ├── opening/      开放时间 Tool
+│       │   ├── service/      旅行服务 Tool
+│       │   ├── validation/   计划校验 Tool
+│       │   └── rag/          知识检索 Tool
 │       ├── domain/
-│       │   └── trip/         TravelPlan 旅行计划领域模型
-│       ├── common/           统一响应、异常、鉴权、加密与操作日志
-│       ├── integration/      AMap、LLM、VLM、Embedding、ASR、TTS Provider
+│       │   ├── trip/         TravelPlan 旅行计划领域模型
+│       │   └── route/        路线领域模型
+│       ├── common/           统一响应、异常、鉴权、加密与健康检查
+│       ├── integration/      AMap、LLM、VLM、Embedding、Aliyun Provider
 │       ├── module/           城市、景区、景点、路线、知识库、对话等业务模块
 │       └── job/              每日统计任务
 ├── admin-web/               Vue 3 管理后台
-├── tourist-app/             UniApp 游客端
+├── tourist-app/             UniApp Web/H5 游客端与数字人界面
 ├── database/                数据库结构与初始化数据
 ├── assets/                  知识资料与数字导游资源
-└── docs/                    接口、数据库与部署文档
+└── docs/                    架构、接口、数据库与生产部署文档
 ```
 
 ## 快速开始
@@ -224,6 +245,8 @@ LvLing-Travel-Agent/
 ```bash
 mysql --default-character-set=utf8mb4 -u root -p < database/schema.sql
 mysql --default-character-set=utf8mb4 -u root -p < database/data.sql
+mysql --default-character-set=utf8mb4 -u root -p scenic_ai_guide < database/migration/phase3_city_context.sql
+mysql --default-character-set=utf8mb4 -u root -p scenic_ai_guide < database/migration/sos_request.sql
 ```
 
 ### 启动后端
@@ -234,6 +257,7 @@ PowerShell：
 cd backend
 $env:DB_PASSWORD = Read-Host '请输入 MySQL 密码'
 $env:AI_CONFIG_AES_KEY = Read-Host '请输入至少 32 位的本地加密密钥'
+$env:AMAP_WEB_SERVICE_KEY = Read-Host '请输入高德 Web Service Key'
 mvn spring-boot:run
 ```
 
@@ -252,9 +276,15 @@ corepack pnpm exec vite
 
 ### 启动游客端
 
-1. 使用 HBuilderX 打开 `tourist-app`。
-2. 运行到浏览器、模拟器或 Android 真机。
-3. 真机调试时，将 API 地址配置为电脑的局域网后端地址。
+1. 将 `tourist-app/.env.example` 复制为 `.env.local`，填写高德 Web 端 JS Key 与安全密钥。
+2. 使用 HBuilderX 打开 `tourist-app` 并运行到浏览器，或在目录中执行 `npm run build` 生成 H5 生产文件。
+3. 开发环境通过 `VITE_DEV_PROXY_TARGET` 指向后端；生产环境默认使用同源 `/api`，不在业务组件中写死后端地址。
+
+## 生产部署
+
+推荐使用一个公网 HTTPS 域名：Nginx 提供 `tourist-app/unpackage/dist/build/h5`，并将 `/api/**` 与 `/files/**` 反向代理至 Spring Boot。数据库密码、高德 Web Service Key、JWT、AI 配置加密密钥等必须通过部署平台环境变量注入。
+
+完整步骤见 [生产部署指南](docs/PRODUCTION_DEPLOYMENT.md)。
 
 ## 安全设计
 
@@ -274,15 +304,22 @@ mvn test
 cd ../admin-web
 corepack pnpm install --frozen-lockfile
 corepack pnpm run build
+
+cd ../tourist-app
+npm run type-check
+npm run build
 ```
 
 更多说明见 [项目文档索引](docs/README.md)。
-## 本次更新说明
+## 当前版本说明
 
 - 修复灵灵 AI 对话链路：统一解包后端 `Result.data`，避免会话创建成功但前端拿不到 `sessionNo`。
 - 登录用户的文字消息恢复使用 `/api/tourist/chat/text/stream` SSE 对话接口；未登录用户仍可使用公开的旅行规划接口。
 - 数字人头像加载失败不再阻断文字对话，空回复会显示明确错误。
 - 新增 Travel Agent、城市上下文、SOS、服务设施和路线工具相关模块及迁移脚本。
+- 浏览器定位和城市搜索统一写入 CurrentCity Store，刷新后可恢复 CityContext。
+- 高德地理编码、POI、天气和路线请求具备服务端 TTL 缓存与限额错误提示。
+- 前端 API Base URL 已环境化，生产环境支持 HTTPS 同源 `/api` 反向代理。
 
 ## 本地启动端口说明
 
