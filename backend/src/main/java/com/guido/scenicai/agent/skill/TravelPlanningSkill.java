@@ -12,8 +12,11 @@ import com.guido.scenicai.agent.intent.IntentExtractor;
 import com.guido.scenicai.agent.planner.TaskPlanner;
 import com.guido.scenicai.agent.planner.TravelTask;
 import com.guido.scenicai.domain.trip.TravelPlan;
-import lombok.RequiredArgsConstructor;
+import com.guido.scenicai.integration.llm.LlmChatRequest;
+import com.guido.scenicai.integration.llm.LlmClientRouter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -23,12 +26,28 @@ import com.guido.scenicai.tool.budget.BudgetTool;
 import com.guido.scenicai.tool.map.AMapRouteTool;
 
 @Service
-@RequiredArgsConstructor
 public class TravelPlanningSkill {
     private final TravelContextBuilder contextBuilder;
     private final IntentExtractor intentExtractor;
     private final TaskPlanner taskPlanner;
     private final HarnessEngine harnessEngine;
+    private final LlmClientRouter llmClientRouter;
+
+    public TravelPlanningSkill(TravelContextBuilder contextBuilder, IntentExtractor intentExtractor,
+                               TaskPlanner taskPlanner, HarnessEngine harnessEngine) {
+        this(contextBuilder, intentExtractor, taskPlanner, harnessEngine, null);
+    }
+
+    @Autowired
+    public TravelPlanningSkill(TravelContextBuilder contextBuilder, IntentExtractor intentExtractor,
+                               TaskPlanner taskPlanner, HarnessEngine harnessEngine,
+                               LlmClientRouter llmClientRouter) {
+        this.contextBuilder = contextBuilder;
+        this.intentExtractor = intentExtractor;
+        this.taskPlanner = taskPlanner;
+        this.harnessEngine = harnessEngine;
+        this.llmClientRouter = llmClientRouter;
+    }
 
     public TravelPlanningResult plan(TravelPlanningRequest request) {
         TravelAgentRequest apiRequest = toAgentRequest(request);
@@ -53,7 +72,8 @@ public class TravelPlanningSkill {
         trace.add(syntheticTrace(tasks.size() + 1, "GENERATE_RESULT", "已生成结构化旅行规划"));
         Object budget = data(executed, "budget.rule");
         BigDecimal estimatedBudget = budget instanceof BudgetTool.BudgetEstimate value ? value.knownEstimate() : null;
-        return new TravelPlanningResult(city + "旅行规划已完成工具编排", apiRequest.getMessage(), request,
+        String summary = summarize(city, parsed, itinerary, warnings, estimatedBudget);
+        return new TravelPlanningResult(summary, apiRequest.getMessage(), request,
                 TravelIntent.from(parsed), data(executed, "city.context"), data(executed, "amap.weather"),
                 data(executed, "amap.poi"), itinerary, data(executed, "amap.route"),
                 data(executed, "city.services"), budget, data(executed, "rag.local"), estimatedBudget,
@@ -83,6 +103,33 @@ public class TravelPlanningSkill {
                 new TravelPlanningResult.ItineraryItem("11:00", route.destination(), "前往下一景点",
                         travelMinutes, transport, route.distanceMeters(), null,
                         "距离和时间来自高德真实路线；低行动能力时提示调整交通方式"));
+    }
+
+    private String summarize(String city, com.guido.scenicai.agent.intent.TravelIntent intent,
+                             List<TravelPlanningResult.ItineraryItem> itinerary,
+                             List<String> warnings, BigDecimal estimatedBudget) {
+        if (llmClientRouter == null) {
+            return city + "旅行规划已完成工具编排";
+        }
+        try {
+            LlmChatRequest llmRequest = new LlmChatRequest();
+            llmRequest.setSystemPrompt("你是旅灵旅行助手。请用自然、简洁的中文为用户总结本次旅行规划，"
+                    + "包含目的地、天数、主要景点、预算与注意事项；工具结果是事实来源，不要编造未返回的内容。");
+            llmRequest.setUserMessage("目的地：" + city
+                    + "\n天数：" + (intent.durationDays() == null ? "未指定" : intent.durationDays() + "天")
+                    + "\n行程：" + itinerary
+                    + (estimatedBudget != null ? "\n估算预算：约 ¥" + estimatedBudget : "")
+                    + (warnings.isEmpty() ? "" : "\n注意事项：" + warnings));
+            llmRequest.setTemperature(0.3);
+            llmRequest.setMaxTokens(500);
+            String content = llmClientRouter.chat(llmRequest).getContent();
+            if (StringUtils.hasText(content)) {
+                return content;
+            }
+        } catch (Exception ignored) {
+            // 降级到硬编码摘要
+        }
+        return city + "旅行规划已完成工具编排";
     }
 
     private String statusFor(TravelTask task, HarnessResult result) {
