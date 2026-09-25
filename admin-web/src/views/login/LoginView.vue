@@ -94,7 +94,7 @@ async function handleSubmit(): Promise<void> {
           </el-form-item>
           <el-form-item label="图片验证码" prop="captchaCode">
             <div class="login-captcha">
-              <el-input v-model="form.captchaCode" autocomplete="off" placeholder="请输入计算结果" />
+              <el-input v-model="form.captchaCode" autocomplete="off" placeholder="请输入图片中的字符" />
               <img
                 v-if="captchaImage"
                 :src="captchaImage"
