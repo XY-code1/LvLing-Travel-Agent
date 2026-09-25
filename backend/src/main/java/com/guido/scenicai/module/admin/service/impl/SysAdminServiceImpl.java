@@ -19,8 +19,12 @@ import com.guido.scenicai.module.log.mapper.SysLogMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 
 @Slf4j
@@ -33,6 +37,10 @@ public class SysAdminServiceImpl implements SysAdminService {
     private final SysLoginLogMapper sysLoginLogMapper;
     private final BCryptPasswordEncoder passwordEncoder;
     private final CaptchaService captchaService;
+
+    /** 找回密码恢复令牌（环境变量 ADMIN_RESET_TOKEN）；为空表示关闭找回密码接口。 */
+    @Value("${app.admin.reset-token:}")
+    private String resetToken;
 
     @Override
     public AdminLoginVO login(AdminLoginDTO dto, String ip, String userAgent) {
@@ -68,9 +76,18 @@ public class SysAdminServiceImpl implements SysAdminService {
         return new AdminLoginVO(token, infoVO);
     }
 
+    /**
+     * 注册管理员：库里还没有任何管理员时允许首次引导注册，
+     * 之后必须由已登录的管理员创建账号，避免接口完全开放导致任何人自助拿到后台权限。
+     */
     @Override
     public void register(AdminRegisterDTO dto) {
         captchaService.verify(dto.getCaptchaId(), dto.getCaptchaCode());
+        Long adminCount = sysAdminMapper.selectCount(null);
+        boolean bootstrap = adminCount == null || adminCount == 0;
+        if (!bootstrap && !isAdminLoggedIn()) {
+            throw new BizException(403, "注册通道已关闭：请由已登录的管理员创建账号");
+        }
         if (sysAdminMapper.selectOne(new LambdaQueryWrapper<SysAdmin>().eq(SysAdmin::getUsername, dto.getUsername())) != null) {
             throw new BizException(400, "管理员账号已存在");
         }
@@ -83,9 +100,20 @@ public class SysAdminServiceImpl implements SysAdminService {
         sysAdminMapper.insert(admin);
     }
 
+    /**
+     * 找回密码：除验证码外必须持有服务端配置的恢复令牌（ADMIN_RESET_TOKEN）。
+     * 令牌未配置时直接关闭该接口——否则只凭公开的用户名就能重置任意管理员密码。
+     */
     @Override
     public void resetPassword(AdminResetPasswordDTO dto) {
         captchaService.verify(dto.getCaptchaId(), dto.getCaptchaCode());
+        String configuredToken = resetToken == null ? "" : resetToken.trim();
+        if (!StringUtils.hasText(configuredToken)) {
+            throw new BizException(503, "找回密码未启用：请在服务端配置 ADMIN_RESET_TOKEN 后再试");
+        }
+        if (!matchesToken(configuredToken, dto.getResetToken())) {
+            throw new BizException(403, "找回密码令牌不正确");
+        }
         SysAdmin admin = sysAdminMapper.selectOne(new LambdaQueryWrapper<SysAdmin>().eq(SysAdmin::getUsername, dto.getUsername()));
         if (admin == null) throw new BizException(404, "管理员账号不存在");
         admin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
@@ -112,8 +140,25 @@ public class SysAdminServiceImpl implements SysAdminService {
         return vo;
     }
 
-    private void writeLoginSuccessLog(String username, String ip, String userAgent) {
-        writeLoginLog(username, ip, userAgent, 1, null);
+    /** 恒定时间比较，避免通过响应耗时逐字符试探恢复令牌。 */
+    private boolean matchesToken(String configuredToken, String providedToken) {
+        if (!StringUtils.hasText(providedToken)) {
+            return false;
+        }
+        return MessageDigest.isEqual(configuredToken.getBytes(StandardCharsets.UTF_8),
+                providedToken.trim().getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** 无 Web 上下文（例如单元测试）时按未登录处理。 */
+    private boolean isAdminLoggedIn() {
+        try {
+            return StpAdminUtil.stpLogic.isLogin();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    private void writeLoginSuccessLog(String username, String ip, String userAgent) {        writeLoginLog(username, ip, userAgent, 1, null);
         writeSysLog(username, ip, 1, null);
     }
 

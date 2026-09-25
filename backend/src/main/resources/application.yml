@@ -105,6 +105,11 @@ demo:
   switch:
     enabled: false
 
+app:
+  admin:
+    # 找回密码恢复令牌（环境变量 ADMIN_RESET_TOKEN）；留空表示关闭「找回密码」接口
+    reset-token: ${ADMIN_RESET_TOKEN:}
+
 amap:
   web-service-key: ${AMAP_WEB_SERVICE_KEY:}
   cache:
