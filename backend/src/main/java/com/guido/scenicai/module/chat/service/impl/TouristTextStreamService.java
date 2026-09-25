@@ -152,7 +152,7 @@ public class TouristTextStreamService {
                 sendChunks(emitter, context);
                 return context;
             }
-            throw new BizException(503, "文本大模型未配置，请在管理后台 AI 配置 > 文本大模型中启用默认配置");
+            throw new BizException(503, "文本大模型未返回内容：请确认管理后台「AI 配置 > 文本大模型」已启用，或稍后重试");
         }
         return answer.toString();
     }
