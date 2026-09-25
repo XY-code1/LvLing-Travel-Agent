@@ -235,7 +235,7 @@ import type {
   TravelPlan,
   TravelRequest
 } from '../../types';
-import { isLoggedIn } from '../../utils/auth';
+import { isLoggedIn, requireLogin } from '../../utils/auth';
 import { emotionText } from '../../utils/display';
 import { getAiRuntimeStatus, runTravelAgent, type AgentPlanResponse } from '../../services/travelAgentService';
 
@@ -604,6 +604,7 @@ function checkStatusText(status: PlannerCheckStatus): string {
 
 async function ensureSession(): Promise<string> {
   await ensureAvatarLoaded();
+  await store.ensureScenicId();
   const avatarId = store.selectedAvatar?.id;
   if (store.currentSessionNo) {
     if (!store.currentSessionAvatarId || !avatarId || store.currentSessionAvatarId === avatarId) {
@@ -998,6 +999,7 @@ function writeAscii(view: DataView, offset: number, value: string): void {
 }
 
 async function sendVoice(file: string | Blob): Promise<void> {
+  if (!requireLogin()) return;
   const userMessageId = `v-${Date.now()}`;
   const aiMessageId = `a-${Date.now() + 1}`;
   voiceLoading.value = true;

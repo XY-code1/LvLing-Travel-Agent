@@ -220,6 +220,7 @@ async function ensureSession(): Promise<string> {
   if (!store.selectedAvatar) {
     store.setSelectedAvatar(await getCurrentAvatar());
   }
+  await store.ensureScenicId();
   const avatarId = store.selectedAvatar?.id;
   if (store.currentSessionNo && (!avatarId || store.currentSessionAvatarId === avatarId)) return store.currentSessionNo;
   const session = await createSession(store.currentScenicId, avatarId);

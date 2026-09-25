@@ -57,4 +57,56 @@ export function uploadRaw(url: string, filePath: string, name: string, formData?
 export function rawPost(url: string, data?: any): Promise<string> { return new Promise((resolve, reject) => { uni.request({ url: withBaseUrl(url), data, method: 'POST', header: { 'content-type': 'application/json', Accept: 'text/event-stream', ...authHeader() }, success: (response) => { if (response.statusCode < 200 || response.statusCode >= 300) { reject(new Error(`HTTP_${response.statusCode}`)); return; } resolve(typeof response.data === 'string' ? response.data : JSON.stringify(response.data)); }, fail: (error) => reject(new Error(error.errMsg || '网络请求失败')) }); }); }
 export type SseEventHandler = (event: SseEvent) => void;
 export async function streamPost(url: string, data: any, onEvent: SseEventHandler): Promise<void> { parseSseText(await rawPost(url, data)).forEach(onEvent); }
-export async function streamUpload(url: string, file: Blob | string, name: string, formData: Record<string, string | number> | undefined, onEvent: SseEventHandler): Promise<void> { if (typeof file !== 'string') throw new Error('H5 upload stream unsupported'); parseSseText(await uploadRaw(url, file, name, formData)).forEach(onEvent); }
+export async function streamUpload(url: string, file: Blob | string, name: string, formData: Record<string, string | number> | undefined, onEvent: SseEventHandler): Promise<void> {
+  if (typeof file === 'string') {
+    parseSseText(await uploadRaw(url, file, name, formData)).forEach(onEvent);
+    return;
+  }
+  await uploadBlobStream(url, file, name, formData, onEvent);
+}
+
+function uploadBlobStream(url: string, file: Blob, name: string, formData: Record<string, string | number> | undefined, onEvent: SseEventHandler): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const body = new FormData();
+    if (formData) {
+      Object.keys(formData).forEach((key) => body.append(key, String(formData[key])));
+    }
+    body.append(name, file, blobFileName(file));
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', withBaseUrl(url), true);
+    xhr.setRequestHeader('Accept', 'text/event-stream');
+    const token = authHeader();
+    Object.keys(token).forEach((key) => xhr.setRequestHeader(key, token[key]));
+    const parser = new SseStreamParser();
+    let consumed = 0;
+    const drain = (): void => {
+      const text = xhr.responseText || '';
+      if (text.length <= consumed) return;
+      const chunk = text.substring(consumed);
+      consumed = text.length;
+      parser.push(chunk).forEach(onEvent);
+    };
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === 3 || xhr.readyState === 4) drain();
+      if (xhr.readyState !== 4) return;
+      parser.flush().forEach(onEvent);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+        return;
+      }
+      reject(new Error(`HTTP_${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new Error('语音上传失败'));
+    xhr.onabort = () => reject(new Error('语音上传已取消'));
+    xhr.send(body);
+  });
+}
+
+function blobFileName(file: Blob): string {
+  const type = (file.type || '').toLowerCase();
+  if (type.includes('webm')) return 'audio.webm';
+  if (type.includes('ogg')) return 'audio.ogg';
+  if (type.includes('mp4')) return 'audio.mp4';
+  if (type.includes('aac')) return 'audio.aac';
+  return 'audio.wav';
+}

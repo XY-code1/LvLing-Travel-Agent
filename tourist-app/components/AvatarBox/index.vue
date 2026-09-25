@@ -58,7 +58,16 @@ const props = defineProps<{
   metaOverride?: string | null;
 }>();
 
-const audio = ref<HTMLAudioElement | null>(null);
+type AudioPlayer = {
+  play(): Promise<void>;
+  pause(): void;
+  stop(): void;
+  onPlay(handler: () => void): void;
+  onPause(handler: () => void): void;
+  onEnded(handler: () => void): void;
+};
+
+const audio = ref<AudioPlayer | null>(null);
 const audioBlocked = ref(false);
 const speaking = ref(false);
 const progress = ref(0);
@@ -109,21 +118,20 @@ async function loadAudio(url: string): Promise<void> {
     speaking.value = false;
     return;
   }
-  const nextAudio = new Audio(url);
-  nextAudio.preload = 'auto';
-  nextAudio.onplay = () => {
+  const nextAudio = createAudioPlayer(url);
+  nextAudio.onPlay(() => {
     speaking.value = true;
     startProgressTimer();
-  };
-  nextAudio.onpause = () => {
+  });
+  nextAudio.onPause(() => {
     speaking.value = false;
     stopProgressTimer();
-  };
-  nextAudio.onended = () => {
+  });
+  nextAudio.onEnded(() => {
     speaking.value = false;
     progress.value = 1;
     stopProgressTimer();
-  };
+  });
   audio.value = nextAudio;
   try {
     await nextAudio.play();
@@ -131,6 +139,35 @@ async function loadAudio(url: string): Promise<void> {
     audioBlocked.value = true;
     speaking.value = false;
   }
+}
+
+function createAudioPlayer(url: string): AudioPlayer {
+  if (typeof uni !== 'undefined' && typeof uni.createInnerAudioContext === 'function') {
+    const ctx = uni.createInnerAudioContext();
+    ctx.autoplay = false;
+    ctx.src = url;
+    return {
+      play: () => {
+        ctx.play();
+        return Promise.resolve();
+      },
+      pause: () => ctx.pause(),
+      stop: () => ctx.stop(),
+      onPlay: (handler) => { ctx.onPlay(handler); },
+      onPause: (handler) => { ctx.onPause(handler); },
+      onEnded: (handler) => { ctx.onEnded(handler); }
+    };
+  }
+  const el = new Audio(url);
+  el.preload = 'auto';
+  return {
+    play: () => el.play(),
+    pause: () => el.pause(),
+    stop: () => { el.pause(); el.src = ''; },
+    onPlay: (handler) => { el.onplay = handler; },
+    onPause: (handler) => { el.onpause = handler; },
+    onEnded: (handler) => { el.onended = handler; }
+  };
 }
 
 async function playAudio(): Promise<void> {
@@ -147,19 +184,15 @@ async function playAudio(): Promise<void> {
 
 function startProgressTimer(): void {
   stopProgressTimer();
-  progressTimer = window.setInterval(() => {
-    const current = audio.value;
-    if (!current || !Number.isFinite(current.duration) || current.duration <= 0) {
-      progress.value = (progress.value + 0.018) % 1;
-      return;
-    }
-    progress.value = Math.min(1, current.currentTime / current.duration);
+  const startedAt = Date.now();
+  progressTimer = setInterval(() => {
+    progress.value = Math.min(1, (Date.now() - startedAt) / 20000);
   }, 50);
 }
 
 function stopProgressTimer(): void {
   if (progressTimer) {
-    window.clearInterval(progressTimer);
+    clearInterval(progressTimer);
     progressTimer = 0;
   }
 }
@@ -167,8 +200,7 @@ function stopProgressTimer(): void {
 function stopAudio(): void {
   stopProgressTimer();
   if (audio.value) {
-    audio.value.pause();
-    audio.value.src = '';
+    audio.value.stop();
     audio.value = null;
   }
   speaking.value = false;

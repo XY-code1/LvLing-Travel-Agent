@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 
 import type { AvatarConfigVO, CityContextVO, CityVO, CurrentLocationState, TouristInfoVO, TouristProfileVO, TravelTaskContext } from '../types';
 import { clearAuth, getStoredUser, getToken, setStoredUser, setToken } from '../utils/auth';
+import { resolveCityContext } from '../api/scenic';
 
 export type LocationStatus = 'idle' | 'locating' | 'resolving' | 'success'
   | 'permission-denied' | 'unavailable' | 'timeout' | 'backend-error';
@@ -17,9 +18,12 @@ export const useTouristStore = defineStore('tourist', () => {
   const selectedAvatar = ref<AvatarConfigVO | null>(null);
   const defaultAvatar = selectedAvatar;
   const avatarOptions = ref<AvatarConfigVO[]>([]);
-  const currentSessionNo = ref('');
-  const currentSessionAvatarId = ref<number | null>(null);
-  const currentScenicId = ref(0);
+  const persistedSession = readPersistedSession();
+  const currentSessionNo = ref(persistedSession.sessionNo);
+  const currentSessionAvatarId = ref<number | null>(persistedSession.avatarId);
+  const currentScenicId = ref(persistedCityContext?.scenicAreas?.length
+    ? persistedCityContext.scenicAreas[0].id
+    : persistedSession.scenicId);
   const currentCityId = ref<number | null>(persistedCityContext?.city?.id
     ?? (Number(uni.getStorageSync('guido_city_id')) || null));
   const currentCity = ref<CityVO | null>(persistedCityContext?.city || null);
@@ -49,6 +53,7 @@ export const useTouristStore = defineStore('tourist', () => {
     currentSessionNo.value = sessionNo;
     currentScenicId.value = scenicId;
     currentSessionAvatarId.value = avatarId ?? null;
+    uni.setStorageSync(SESSION_STORAGE_KEY, JSON.stringify({ sessionNo, scenicId, avatarId: avatarId ?? null }));
   }
   function setCityContext(context: CityContextVO, selectionSource: CitySelectionSource = 'manual'): void {
     if (!context?.city?.cityName || !(context.cityKey || context.city.cityKey || context.adcode || context.city.adcode)) {
@@ -123,6 +128,22 @@ export const useTouristStore = defineStore('tourist', () => {
   function clearSession(): void {
     currentSessionNo.value = '';
     currentSessionAvatarId.value = null;
+    uni.removeStorageSync(SESSION_STORAGE_KEY);
+  }
+
+  async function ensureScenicId(): Promise<void> {
+    if (currentScenicId.value > 0) return;
+    const cityName = currentCity.value?.cityName || cityContext.value?.city?.cityName;
+    if (!cityName) return;
+    try {
+      const context = await resolveCityContext(cityName);
+      if (context?.scenicAreas?.length) {
+        setCityContext(context, 'manual');
+      }
+    } catch (error) {
+      // 解析失败时保持现有 scenicId，对话仍可用通用知识降级回答。
+      console.warn('[Scenic] resolve scenicId failed; keep as-is', error);
+    }
   }
 
   function logoutLocal(): void {
@@ -156,6 +177,7 @@ export const useTouristStore = defineStore('tourist', () => {
     setSelectedAvatar,
     setDefaultAvatar,
     clearSession,
+    ensureScenicId,
     logoutLocal
   };
 });
@@ -198,5 +220,23 @@ function readTravelTaskContext(): TravelTaskContext | null {
   } catch {
     uni.removeStorageSync('guido_travel_task_context');
     return null;
+  }
+}
+
+const SESSION_STORAGE_KEY = 'guido_tourist_session';
+
+function readPersistedSession(): { sessionNo: string; scenicId: number; avatarId: number | null } {
+  const value = uni.getStorageSync(SESSION_STORAGE_KEY);
+  if (!value) return { sessionNo: '', scenicId: 0, avatarId: null };
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return {
+      sessionNo: typeof parsed?.sessionNo === 'string' ? parsed.sessionNo : '',
+      scenicId: typeof parsed?.scenicId === 'number' ? parsed.scenicId : 0,
+      avatarId: typeof parsed?.avatarId === 'number' ? parsed.avatarId : null
+    };
+  } catch {
+    uni.removeStorageSync(SESSION_STORAGE_KEY);
+    return { sessionNo: '', scenicId: 0, avatarId: null };
   }
 }
