@@ -1,11 +1,14 @@
 package com.guido.scenicai.integration.amap;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.guido.scenicai.common.exception.BizException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AmapGeocodingProvider {
@@ -23,10 +26,7 @@ public class AmapGeocodingProvider {
     public Result reverseGeocode(double longitude, double latitude, boolean wgs84) {
         AmapPoiProvider.Coordinate coordinate = new AmapPoiProvider.Coordinate(longitude, latitude);
         if (wgs84) {
-            JsonNode converted = client.get("/v3/assistant/coordinate/convert", Map.of(
-                    "locations", location(coordinate), "coordsys", "gps"));
-            coordinate = AmapPoiProvider.Coordinate.parse(converted.path("locations").asText());
-            if (coordinate == null) return null;
+            coordinate = toGcj02(coordinate);
         }
         JsonNode regeo = client.get("/v3/geocode/regeo", Map.of(
                 "location", location(coordinate), "extensions", "base", "radius", "1000"))
@@ -42,6 +42,26 @@ public class AmapGeocodingProvider {
 
     private String location(AmapPoiProvider.Coordinate coordinate) {
         return coordinate.longitude() + "," + coordinate.latitude();
+    }
+
+    /**
+     * WGS84 → GCJ02 只是精度优化：高德坐标转换接口不可用（未开通 / 超限 / 网络异常）时回退为原始坐标，
+     * 让逆地理编码仍能完成，避免整条「定位当前位置」链路因为一个可选接口而失败。
+     */
+    private AmapPoiProvider.Coordinate toGcj02(AmapPoiProvider.Coordinate coordinate) {
+        try {
+            JsonNode converted = client.get("/v3/assistant/coordinate/convert",
+                    Map.of("locations", location(coordinate), "coordsys", "gps"));
+            AmapPoiProvider.Coordinate parsed = AmapPoiProvider.Coordinate.parse(converted.path("locations").asText());
+            if (parsed == null) {
+                log.warn("高德坐标转换返回空结果，改用原始 WGS84 坐标继续逆地理编码");
+                return coordinate;
+            }
+            return parsed;
+        } catch (BizException e) {
+            log.warn("高德坐标转换失败（{}），改用原始 WGS84 坐标继续逆地理编码", e.getMsg());
+            return coordinate;
+        }
     }
 
     private String text(JsonNode value) {

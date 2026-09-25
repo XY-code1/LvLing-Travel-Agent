@@ -53,7 +53,7 @@ async function resolveCurrentLocation(automatic: boolean): Promise<CityContextVO
       console.warn('[Geolocation] reverse geocode failed; coordinates retained', error);
       store.setCurrentLocation({ cityName: null, status: 'partial' });
       store.setLocationStatus('success');
-      throw new Error('REVERSE_GEOCODE_FAILED');
+      throw markReverseGeocodeFailure(error);
     }
     store.setCurrentLocation({ cityName: context.city?.cityName || null, province: context.city?.province || null, status: 'success' });
     if (automatic && selectionAtStart !== 'manual' && store.citySelectionSource === 'manual') {
@@ -65,9 +65,22 @@ async function resolveCurrentLocation(automatic: boolean): Promise<CityContextVO
   } catch (error: unknown) {
     store.setLocationStatus(locationErrorStatus(error));
     store.setLocationError(locationErrorMessage(error));
-    if (error instanceof Error && error.message === 'REVERSE_GEOCODE_FAILED') return store.cityContext!;
+    if (isReverseGeocodeFailure(error)) return store.cityContext!;
     throw error instanceof Error ? error : new Error(locationErrorMessage(error));
   }
+}
+
+interface ReverseGeocodeError extends Error { reverseGeocodeFailed: true }
+
+/** 保留反向地理编码失败的原始原因（后端错误码/网络错误），只在错误对象上打标记，不再用占位消息覆盖它。 */
+function markReverseGeocodeFailure(error: unknown): ReverseGeocodeError {
+  const marked = (error instanceof Error ? error : new Error('REVERSE_GEOCODE_FAILED')) as ReverseGeocodeError;
+  marked.reverseGeocodeFailed = true;
+  return marked;
+}
+
+function isReverseGeocodeFailure(error: unknown): boolean {
+  return error instanceof Error && (error as Partial<ReverseGeocodeError>).reverseGeocodeFailed === true;
 }
 
 /** Automatic location never overwrites a manual selection and never blocks rendering. */
@@ -150,5 +163,21 @@ function locationErrorMessage(error: unknown): string {
   if (message === 'GEOLOCATION_TIMEOUT') return '定位超时';
   if (message === 'GEOLOCATION_UNSUPPORTED') return '当前浏览器不支持定位';
   if (message === 'GEOLOCATION_UNAVAILABLE') return '暂时无法获取设备位置';
-  return '位置解析服务暂时不可用';
+  return resolveLocationErrorMessage(message);
+}
+
+/** 把后端或网络返回的真实原因翻译成可操作的提示，避免所有失败都折叠成一句无从排查的"位置解析服务暂时不可用"。 */
+function resolveLocationErrorMessage(message: string): string {
+  if (!message || message === 'REVERSE_GEOCODE_FAILED') return '位置解析服务暂时不可用，请稍后重试';
+  if (message.includes('AMAP_WEB_SERVICE_KEY_NOT_CONFIGURED')) return '服务端未配置高德 Web 服务 Key，请联系管理员';
+  if (message.includes('DAILY_QUERY_OVER_LIMIT')) return '位置解析服务今日调用额度已用尽，请稍后重试';
+  if (message.includes('INVALID_USER_KEY') || message.includes('USERKEY_PLAT_NOMATCH')) return '高德 Key 无效或与服务类型不匹配，请联系管理员';
+  if (message.includes('SERVICE_NOT_AVAILABLE')) return '高德未开通该位置服务，请联系管理员';
+  if (message.includes('AMAP_API_ERROR') || message.includes('AMAP_API_REQUEST_FAILED')) return '位置解析服务暂时不可用，请稍后重试';
+  if (message.includes('LOCATION_CITY_NOT_FOUND') || message.includes('CITY_NOT_FOUND')) return '未识别出当前位置所属城市，请手动选择城市';
+  if (message.includes('LOCATION_COORDINATE')) return '定位坐标无效，请重新定位';
+  if (message.startsWith('HTTP_5')) return '位置解析服务出错，请稍后重试';
+  if (message.startsWith('HTTP_')) return `位置解析请求失败（${message}）`;
+  if (message.startsWith('request:fail')) return '无法连接位置解析服务，请确认后端服务已启动后重试';
+  return `位置解析服务暂时不可用（${message}）`;
 }

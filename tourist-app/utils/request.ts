@@ -16,6 +16,11 @@ function withBaseUrl(url: string): string { return url.startsWith('http') ? url 
 function authHeader(): Record<string, string> { const token = getToken(); return token ? { satoken: token } : {}; }
 function isPublicAgentPath(url: string): boolean { return url === '/api/tourist/agent/plan' || url.endsWith('/api/tourist/agent/plan'); }
 function handleUnauthorized(): void { clearAuth(); uni.showToast({ title: '请先登录', icon: 'none' }); uni.redirectTo({ url: '/pages/login/index' }); }
+function serverMessage(data: unknown): string {
+  if (!data || typeof data !== 'object' || !('msg' in data)) return '';
+  const msg = (data as { msg?: unknown }).msg;
+  return typeof msg === 'string' ? msg : '';
+}
 
 export function request<T>(options: UniRequestOptions): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -24,7 +29,7 @@ export function request<T>(options: UniRequestOptions): Promise<T> {
     const headers = isPublicAgentPath(options.url) ? {} : authHeader();
     uni.request({ url: requestUrl, method, data: options.data, header: { 'content-type': 'application/json', ...headers, ...(options.header || {}) }, success: (response) => {
       const statusCode = Number(response.statusCode || 0); console.log('[RequestSuccess]', { url: requestUrl, method, statusCode, data: response.data });
-      if (statusCode < 200 || statusCode >= 300) { console.error('[HTTPError]', { statusCode, url: requestUrl, body: response.data }); const error = new Error(`HTTP_${statusCode || 'UNKNOWN'}`) as TransportError; error.errorType = 'HTTP_ERROR'; error.statusCode = statusCode; error.requestUrl = requestUrl; error.method = String(method); error.response = response.data; reject(error); return; }
+      if (statusCode < 200 || statusCode >= 300) { console.error('[HTTPError]', { statusCode, url: requestUrl, body: response.data }); const detail = serverMessage(response.data); const error = new Error(`HTTP_${statusCode || 'UNKNOWN'}${detail ? `: ${detail}` : ''}`) as TransportError; error.errorType = 'HTTP_ERROR'; error.statusCode = statusCode; error.requestUrl = requestUrl; error.method = String(method); error.response = response.data; reject(error); return; }
       const body = response.data as unknown;
       if (body && typeof body === 'object' && 'code' in (body as object) && 'data' in (body as object)) {
         const wrapped = body as { code: number; msg?: string; data: T };
