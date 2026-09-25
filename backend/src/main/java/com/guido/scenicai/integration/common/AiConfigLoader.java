@@ -18,11 +18,11 @@ public class AiConfigLoader {
     private final AiServiceConfigMapper aiServiceConfigMapper;
     private final CredentialCrypto credentialCrypto;
 
-    @Value("${LLM_BASE_URL:}")
+    @Value("${LLM_BASE_URL:${OPENAI_BASE_URL:}}")
     private String llmBaseUrl;
-    @Value("${LLM_MODEL:}")
+    @Value("${LLM_MODEL:${OPENAI_MODEL:}}")
     private String llmModel;
-    @Value("${OPENAI_API_KEY:}")
+    @Value("${OPENAI_API_KEY:${DEEPSEEK_API_KEY:}}")
     private String openAiApiKey;
 
     public AiConfigSnapshot loadDefault(String serviceType) {
@@ -36,7 +36,15 @@ public class AiConfigLoader {
                 .eq(AiServiceConfig::getIsDefault, 1)
                 .last("LIMIT 1"));
         if (config == null) {
-            throw new BizException(ResultCode.AI_CONFIG_MISSING.getCode(), "AI 服务未配置或未启用：" + serviceType);
+            Long count = aiServiceConfigMapper.selectCount(new LambdaQueryWrapper<AiServiceConfig>()
+                    .eq(AiServiceConfig::getServiceType, serviceType));
+            String hint = (count == null || count == 0)
+                    ? "尚未新增该服务配置"
+                    : "已有 " + count + " 条配置，但均未同时满足「能力校验通过 + 全局启用」";
+            throw new BizException(ResultCode.AI_CONFIG_MISSING.getCode(),
+                    "AI 服务未配置或未启用：" + serviceType + "（" + hint
+                            + "；请在管理后台对该服务执行「测试」通过后再点击「全局启用」，"
+                            + "或设置环境变量 LLM_BASE_URL / LLM_MODEL / OPENAI_API_KEY）");
         }
         return toSnapshot(config);
     }

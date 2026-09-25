@@ -18,11 +18,11 @@ import org.springframework.util.StringUtils;
 public class LlmRuntimeStatus {
     private final AiServiceConfigMapper configMapper;
 
-    @Value("${LLM_BASE_URL:}")
+    @Value("${LLM_BASE_URL:${OPENAI_BASE_URL:}}")
     private String llmBaseUrl;
-    @Value("${LLM_MODEL:}")
+    @Value("${LLM_MODEL:${OPENAI_MODEL:}}")
     private String llmModel;
-    @Value("${OPENAI_API_KEY:}")
+    @Value("${OPENAI_API_KEY:${DEEPSEEK_API_KEY:}}")
     private String openAiApiKey;
 
     public Status current() {
