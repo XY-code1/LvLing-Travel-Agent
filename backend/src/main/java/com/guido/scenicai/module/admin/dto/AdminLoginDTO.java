@@ -11,4 +11,10 @@ public class AdminLoginDTO {
 
     @NotBlank(message = "密码不能为空")
     private String password;
+
+    @NotBlank(message = "验证码不能为空")
+    private String captchaId;
+
+    @NotBlank(message = "验证码不能为空")
+    private String captchaCode;
 }

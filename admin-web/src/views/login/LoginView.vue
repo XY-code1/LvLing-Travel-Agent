@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 
 import { useAuthStore } from '../../stores';
 import { getErrorMessage } from '../../utils';
+import { getAdminCaptcha } from '../../api/login';
 
 interface LoginForm {
   username: string;
   password: string;
+  captchaId: string;
+  captchaCode: string;
 }
 
 const route = useRoute();
@@ -19,12 +22,27 @@ const formRef = ref<FormInstance>();
 const loading = ref(false);
 const form = reactive<LoginForm>({
   username: '',
-  password: ''
+  password: '',
+  captchaId: '',
+  captchaCode: ''
+});
+const captchaImage = ref('');
+
+async function refreshCaptcha(): Promise<void> {
+  const captcha = await getAdminCaptcha();
+  form.captchaId = captcha.captchaId;
+  captchaImage.value = captcha.image;
+  form.captchaCode = '';
+}
+
+onMounted(() => {
+  void refreshCaptcha();
 });
 
 const rules: FormRules<LoginForm> = {
   username: [{ required: true, message: '请输入管理员账号', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入登录密码', trigger: 'blur' }]
+  password: [{ required: true, message: '请输入登录密码', trigger: 'blur' }],
+  captchaCode: [{ required: true, message: '请输入图片验证码', trigger: 'blur' }]
 };
 
 async function handleSubmit(): Promise<void> {
@@ -40,6 +58,7 @@ async function handleSubmit(): Promise<void> {
     await router.replace(redirect);
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error));
+    void refreshCaptcha();
   } finally {
     loading.value = false;
   }
@@ -72,6 +91,19 @@ async function handleSubmit(): Promise<void> {
               show-password
               type="password"
             />
+          </el-form-item>
+          <el-form-item label="图片验证码" prop="captchaCode">
+            <div class="login-captcha">
+              <el-input v-model="form.captchaCode" autocomplete="off" placeholder="请输入计算结果" />
+              <img
+                v-if="captchaImage"
+                :src="captchaImage"
+                alt="点击刷新验证码"
+                class="login-captcha__image"
+                title="点击刷新验证码"
+                @click="refreshCaptcha"
+              />
+            </div>
           </el-form-item>
           <el-button class="login-submit" type="primary" :loading="loading" @click="handleSubmit">
             登录

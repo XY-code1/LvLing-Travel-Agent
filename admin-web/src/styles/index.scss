@@ -131,6 +131,20 @@ body { margin: 0; }
 
 .login-submit { width: 100%; }
 
+.login-captcha {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.login-captcha__image {
+  width: 120px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
 /* ═══════════════════════════════════════════════════════
    Admin Shell — 深色侧边栏 + 顶栏 + 内容区
    ═══════════════════════════════════════════════════════ */

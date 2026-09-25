@@ -4,11 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.guido.scenicai.common.config.StpAdminUtil;
 import com.guido.scenicai.common.exception.BizException;
 import com.guido.scenicai.module.admin.dto.AdminLoginDTO;
+import com.guido.scenicai.module.admin.dto.AdminRegisterDTO;
+import com.guido.scenicai.module.admin.dto.AdminResetPasswordDTO;
 import com.guido.scenicai.module.admin.entity.SysAdmin;
 import com.guido.scenicai.module.admin.entity.SysLoginLogEntity;
 import com.guido.scenicai.module.admin.mapper.SysAdminMapper;
 import com.guido.scenicai.module.admin.mapper.SysLoginLogMapper;
 import com.guido.scenicai.module.admin.service.SysAdminService;
+import com.guido.scenicai.module.admin.service.CaptchaService;
 import com.guido.scenicai.module.admin.vo.AdminInfoVO;
 import com.guido.scenicai.module.admin.vo.AdminLoginVO;
 import com.guido.scenicai.module.log.entity.SysLogEntity;
@@ -29,9 +32,11 @@ public class SysAdminServiceImpl implements SysAdminService {
     private final SysLogMapper sysLogMapper;
     private final SysLoginLogMapper sysLoginLogMapper;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final CaptchaService captchaService;
 
     @Override
     public AdminLoginVO login(AdminLoginDTO dto, String ip, String userAgent) {
+        captchaService.verify(dto.getCaptchaId(), dto.getCaptchaCode());
         SysAdmin admin = sysAdminMapper.selectOne(
                 new LambdaQueryWrapper<SysAdmin>()
                         .eq(SysAdmin::getUsername, dto.getUsername())
@@ -61,6 +66,30 @@ public class SysAdminServiceImpl implements SysAdminService {
 
         log.info("管理员登录成功: username={}", admin.getUsername());
         return new AdminLoginVO(token, infoVO);
+    }
+
+    @Override
+    public void register(AdminRegisterDTO dto) {
+        captchaService.verify(dto.getCaptchaId(), dto.getCaptchaCode());
+        if (sysAdminMapper.selectOne(new LambdaQueryWrapper<SysAdmin>().eq(SysAdmin::getUsername, dto.getUsername())) != null) {
+            throw new BizException(400, "管理员账号已存在");
+        }
+        SysAdmin admin = new SysAdmin();
+        admin.setUsername(dto.getUsername());
+        admin.setPassword(passwordEncoder.encode(dto.getPassword()));
+        admin.setRealName(dto.getRealName());
+        admin.setRole("admin");
+        admin.setStatus(1);
+        sysAdminMapper.insert(admin);
+    }
+
+    @Override
+    public void resetPassword(AdminResetPasswordDTO dto) {
+        captchaService.verify(dto.getCaptchaId(), dto.getCaptchaCode());
+        SysAdmin admin = sysAdminMapper.selectOne(new LambdaQueryWrapper<SysAdmin>().eq(SysAdmin::getUsername, dto.getUsername()));
+        if (admin == null) throw new BizException(404, "管理员账号不存在");
+        admin.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        sysAdminMapper.updateById(admin);
     }
 
     @Override

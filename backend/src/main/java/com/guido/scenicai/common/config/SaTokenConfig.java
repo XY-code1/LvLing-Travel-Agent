@@ -31,7 +31,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
         registry.addInterceptor(new SaInterceptor(handle -> {
                     SaRouter.match(SaHttpMethod.OPTIONS).back();
                     SaRouter.match("/api/admin/**")
-                            .notMatch("/api/admin/login")
+                            .notMatch("/api/admin/login", "/api/admin/register", "/api/admin/forgot-password", "/api/admin/captcha")
                             .check(r -> StpAdminUtil.stpLogic.checkLogin());
                 }))
                 .addPathPatterns("/api/admin/**");

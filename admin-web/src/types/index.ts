@@ -14,7 +14,10 @@ export interface PageResult<T> {
 export interface AdminLoginDTO {
   username: string;
   password: string;
+  captchaId: string;
+  captchaCode: string;
 }
+export interface CaptchaVO { captchaId: string; image: string; }
 
 export interface AdminInfoVO {
   id: number;
