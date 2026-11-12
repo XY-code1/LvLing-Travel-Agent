@@ -2,6 +2,17 @@
 
 目标拓扑：浏览器通过同一个 HTTPS 域名访问 H5；Nginx 提供静态文件并把 `/api`、`/files` 转发到 Spring Boot。高德 Web Service、数据库、LLM 与 TTS 凭据只存在于服务端。
 
+## 0. 快速部署（Docker Compose，推荐）
+
+仓库提供最小生产拓扑的容器化部署，对应 `PRODUCTION_READINESS_AUDIT.md` 的 blocker「无 Dockerfile/Compose」：
+
+- `backend/Dockerfile`：多阶段构建（Maven 构建 fat JAR + JRE 17 运行镜像，非 root 用户）。
+- `docker-compose.yml`：MySQL 8 + Spring Boot 后端 + Nginx（同源托管 H5 并反代 `/api`、`/files`）。
+- `deploy/nginx.conf`：HTTPS / SPA fallback / 反向代理模板；证书放 `deploy/certs/`。
+- `.env.example`：复制为根目录 `.env` 后填入真实值（`.env` 已被忽略，不要提交）。
+
+步骤、验证与维护见 [deploy/README.md](deploy/README.md)。首次启动会自动执行 `database/schema.sql`、`data.sql` 与迁移脚本；后端等待 MySQL 健康检查通过后启动。
+
 ## 1. 构建
 
 ### tourist-app H5
